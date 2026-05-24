@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <util/atomic.h>
 
-static volatile uint32_t _ticks_ms = 0;
+static volatile uint32_t _ticks_ms = 0; // MAX: 4,294,967,295 ms; 2^32-1 counts
 
 void millis_init(void) {
   // Timer0, CTC mode, prescaller /8, OCR0A = 124

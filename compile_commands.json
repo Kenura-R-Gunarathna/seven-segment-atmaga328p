@@ -1,0 +1,31 @@
+[
+  {
+    "file": "src/main.c",
+    "arguments": [
+      "/usr/bin/avr-gcc",
+      "-c",
+      "-mmcu=atmega328p",
+      "-I.",
+      "-gdwarf-2",
+      "-DF_CPU=1000000UL",
+      "-Os",
+      "-funsigned-char",
+      "-funsigned-bitfields",
+      "-fpack-struct",
+      "-fshort-enums",
+      "-Wall",
+      "-Wstrict-prototypes",
+      "-Wa,-adhlns=build/main.lst",
+      "-std=gnu99",
+      "-MMD",
+      "-MP",
+      "-MF",
+      "build/main.o.d",
+      "src/main.c",
+      "-o",
+      "build/main.o"
+    ],
+    "directory": "/home/kenura/Documents/ph-embeded-17239/sirs_ssd",
+    "output": "build/main.o"
+  }
+]
