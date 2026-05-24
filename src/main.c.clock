@@ -8,7 +8,7 @@ int main(void) {
     millis_init();
     sei();
 
-    clock_init(21, 13);      // start at 12.12
+    clock_init(12, 12);      // start at 12.12
 
     uint32_t last_dot  = 0;   // 1Hz  — dot blink
     uint32_t last_tick = 0;   // 1min — clock advance
