@@ -18,6 +18,31 @@ void display_write(uint16_t number) {
     display_buf[3] = charset_get((number / 1)    % 10);  // units
 }
 
+// write a string of up to 4 characters into the buffer
+// (e.g., display_write_str("HELP"); or display_write_str("HI"); )
+void display_write_str(const char* str) {
+    for (uint8_t i = 0; i < 4; i++) {
+        if (str[i] != '\0') {
+            display_buf[i] = charset_get_char(str[i]);
+        } else {
+            // If the string is shorter than 4 chars, blank the rest
+            display_buf[i] = 0x00;
+
+            // To make shorter strings left-aligned, use the above.
+            // If you want them to stop parsing and leave old chars, remove `display_buf[i] = 0x00;`
+            return; // stop processing once end of string is reached
+        }
+    }
+}
+
+// write a single character to a specific digit position (0-3)
+// (e.g., display_write_char(3, 'C'); for Celsius)
+void display_write_char(uint8_t d, char c) {
+    if (d < 4) {
+        display_buf[d] = charset_get_char(c);
+    }
+}
+
 // set decimal point on one digit (0-3)
 void display_set_dp(uint8_t d) {
     display_buf[d] |= CHARSET_DP;
