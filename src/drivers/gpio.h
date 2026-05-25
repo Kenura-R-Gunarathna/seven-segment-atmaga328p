@@ -37,20 +37,21 @@ void    gpio_tog(GPIO g)  { *g.port ^= (1 << g.bit); }
 #define gpio_init(g, mode, val) do { gpio_mode(g, mode); gpio_write(g, val); } while(0)
 
 // ── pin definitions ────────────────────────────────────────────────
-static const GPIO SEG_DP = { &DDRB, &PORTB, &PINB, PB6 }; // 0, dp
-static const GPIO SEG_G  = { &DDRB, &PORTB, &PINB, PB7 }; // 1, g
-static const GPIO SEG_F  = { &DDRC, &PORTC, &PINC, PC5 }; // 2, f
-static const GPIO SEG_E  = { &DDRC, &PORTC, &PINC, PC4 }; // 3, e
-static const GPIO SEG_D  = { &DDRC, &PORTC, &PINC, PC3 }; // 4, d
-static const GPIO SEG_C  = { &DDRC, &PORTC, &PINC, PC2 }; // 5, c
+static const GPIO SEG_DP = { &DDRB, &PORTB, &PINB, PB1 }; // 0, dp
+static const GPIO SEG_G  = { &DDRB, &PORTB, &PINB, PB2 }; // 1, g
+static const GPIO SEG_F  = { &DDRB, &PORTB, &PINB, PB3 }; // 2, f
+static const GPIO SEG_E  = { &DDRB, &PORTB, &PINB, PB4 }; // 3, e
+static const GPIO SEG_D  = { &DDRB, &PORTB, &PINB, PB5 }; // 4, d
+static const GPIO SEG_C  = { &DDRC, &PORTC, &PINC, PC0 }; // 5, c
 static const GPIO SEG_B  = { &DDRC, &PORTC, &PINC, PC1 }; // 6, b
-static const GPIO SEG_A  = { &DDRC, &PORTC, &PINC, PC0 }; // 7, a
+static const GPIO SEG_A  = { &DDRC, &PORTC, &PINC, PC2 }; // 7, a
 
-static const GPIO DIG_1  = { &DDRB, &PORTB, &PINB, PB5 }; // D1
-static const GPIO DIG_2  = { &DDRB, &PORTB, &PINB, PB4 }; // D2
-static const GPIO DIG_3  = { &DDRB, &PORTB, &PINB, PB3 }; // D3
-static const GPIO DIG_4  = { &DDRB, &PORTB, &PINB, PB2 }; // D4
-static const GPIO GND    = { &DDRB, &PORTB, &PINB, PB1 }; // GND
+static const GPIO DIG_1  = { &DDRB, &PORTB, &PINB, PB0 }; // D1
+static const GPIO DIG_2  = { &DDRD, &PORTD, &PIND, PD7 }; // D2
+static const GPIO DIG_3  = { &DDRD, &PORTD, &PIND, PD6 }; // D3
+static const GPIO DIG_4  = { &DDRD, &PORTD, &PIND, PD5 }; // D4
+static const GPIO GLED   = { &DDRB, &PORTB, &PINB, PB6 }; // GLED
+static const GPIO GND    = { &DDRB, &PORTB, &PINB, PB7 }; // GND
 
 // ── pin arrays ─────────────────────────────────────────────────────
 static const GPIO SEG_PINS[] = { SEG_DP, SEG_A, SEG_B, SEG_C, SEG_D, SEG_E, SEG_F, SEG_G };
@@ -60,6 +61,7 @@ static const GPIO DIG_PINS[] = { DIG_1, DIG_2, DIG_3, DIG_4 };
 void gpio_set_all_output(void) {
     for (uint8_t i = 0; i < 8; i++) { gpio_output(SEG_PINS[i]); }
     for (uint8_t i = 0; i < 4; i++) { gpio_output(DIG_PINS[i]); }
+    gpio_init(GLED, OUTPUT, LOW);
     gpio_init(GND, OUTPUT, LOW);
 }
 
