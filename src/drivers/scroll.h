@@ -27,6 +27,45 @@ static inline void scroll_start(const char* str, uint16_t speed_ms) {
     }
 }
 
+// Write val into buf zero-padded to min_digits. Returns chars written.
+static inline uint8_t _scroll_write_uint(char* buf, uint32_t val, uint8_t min_digits) {
+    char tmp[10];
+    uint8_t len = 0;
+    do {
+        tmp[len++] = '0' + (uint8_t)(val % 10); // digits in lowerst to highest position.
+        val /= 10;
+    } while (val > 0);
+    while (len < min_digits) tmp[len++] = '0'; // prepare the block of digits
+    for (uint8_t i = 0; i < len; i++)
+        buf[i] = tmp[len - 1 - i]; // digits in highest to lowest position.
+    return len;
+}
+
+// Scroll a number with units. Always 4 total digits (integer + frac).
+// e.g. scroll_start_num(1, 234, 3, " s", 300) -> "  1.234 s  "
+// e.g. scroll_start_num(450, 0, 0, " ms", 300) -> "  0450 ms  "
+static inline void scroll_start_num(uint32_t integer_part, uint32_t frac_part,
+                                     uint8_t frac_digits, const char* unit,
+                                     uint16_t speed_ms) {
+    static char scroll_num_buf[24];
+    uint8_t pos = 0;
+    uint8_t int_digits = 4 - frac_digits;
+
+    scroll_num_buf[pos++] = ' ';
+    scroll_num_buf[pos++] = ' ';
+    pos += _scroll_write_uint(scroll_num_buf + pos, integer_part, int_digits);
+    if (frac_digits > 0) {
+        scroll_num_buf[pos++] = '.';
+        pos += _scroll_write_uint(scroll_num_buf + pos, frac_part, frac_digits);
+    }
+    while (*unit) scroll_num_buf[pos++] = *unit++;
+    scroll_num_buf[pos++] = ' ';
+    scroll_num_buf[pos++] = ' ';
+    scroll_num_buf[pos]   = '\0';
+
+    scroll_start(scroll_num_buf, speed_ms);
+}
+
 // Stop scrolling
 static inline void scroll_stop(void) {
     scroll.active = 0;

@@ -67,16 +67,21 @@ uint8_t charset_get_char(char c) {
         return CHARSET[c - '0'];
     }
 
-    // 2. Convert lowercase to uppercase automatically
+    // 2. Handle Dash / Hyphen explicitly (Only segment g is ON)
+    if (c == '-') {
+        return 0x02;
+    }
+
+    // 3. Convert lowercase to uppercase automatically
     if (c >= 'a' && c <= 'z') {
         c -= 32;
     }
 
-    // 3. Handle Letters 'A' through 'Z'
+    // 4. Handle Letters 'A' through 'Z'
     if (c >= 'A' && c <= 'Z') {
         return CHARSET[c - 'A' + 10]; // Mathematically maps 'A' to index 10, 'B' to 11, etc.
     }
 
-    // 4. Return Blank (0x00) for spaces or unsupported symbols
+    // 5. Return Blank (0x00) for spaces or unsupported symbols
     return 0x00;
 }
