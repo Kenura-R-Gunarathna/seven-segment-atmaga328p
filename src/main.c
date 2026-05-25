@@ -1,6 +1,7 @@
 #include "drivers/millis.h"
 #include "drivers/gpio.h"
 #include "drivers/display.h"
+#include "drivers/scroll.h"
 #include "utils.h"
 
 int main(void) {
@@ -13,10 +14,13 @@ int main(void) {
     uint32_t last_dot  = 0;   // 1Hz  — dot blink
     uint32_t last_tick = 0;   // 1min — clock advance
 
+    // Start the scroll animation
+    scroll_start("    READY    ", 300);
+
     for (;;) {
         display_refresh();
 
-        uint32_t now = millis();
+        // uint32_t now = millis();
 
         // // dot blinks every second
         // if (now - last_dot >= 1000) {
@@ -47,6 +51,8 @@ int main(void) {
         // display_write_char(1, 'A');
         // display_write_char(2, 'e');
         // display_write_char(3, 's');
+
+        scroll_tick();
     }
     return 0;
 }

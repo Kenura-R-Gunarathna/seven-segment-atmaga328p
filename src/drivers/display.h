@@ -38,9 +38,7 @@ void display_write_str(const char* str) {
 // write a single character to a specific digit position (0-3)
 // (e.g., display_write_char(3, 'C'); for Celsius)
 void display_write_char(uint8_t d, char c) {
-    if (d < 4) {
-        display_buf[d] = charset_get_char(c);
-    }
+    if (d < 4) display_buf[d] = charset_get_char(c);
 }
 
 // set decimal point on one digit (0-3)
@@ -55,9 +53,7 @@ void display_clear_dp(uint8_t d) {
 
 // blank entire display
 void display_clear(void) {
-    for (uint8_t i = 0; i < 4; i++) {
-        display_buf[i] = 0x00;
-    }
+    for (uint8_t i = 0; i < 4; i++) display_buf[i] = 0x00;
 }
 
 // ── refresh — call every loop ─────────────────────────────────────
