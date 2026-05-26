@@ -4,7 +4,7 @@
 #include "drivers/scroll.h"
 #include "drivers/comparator.h"
 
-// We can use a volatile variable so the ISR can talk to the main loop
+// use a volatile variable so the ISR can talk to the main loop
 volatile uint8_t comparator_triggered = 0;
 
 // This is the Interrupt Service Routine.
@@ -15,7 +15,7 @@ ISR(ANALOG_COMP_vect) {
 
 int main(void) {
     gpio_set_all_output();
-    // millis_init();
+    millis_init();
     // Set your pins as inputs
 
     // Setup the Comparator
@@ -42,11 +42,11 @@ int main(void) {
         display_refresh();
         // scroll_tick();
 
-        // uint32_t now = millis();
+        uint32_t now = millis();
         // uint8_t current_sw_state = gpio_read(TOGGLE_SW);
 
         // Check if the hardware interrupt caught a trigger
-        if (comparator_triggered) {
+        if (comp_read()) {
 
             // 1. Reset the flag immediately
             comparator_triggered = 0;
