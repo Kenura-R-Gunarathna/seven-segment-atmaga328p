@@ -60,3 +60,19 @@ static inline void comp_interrupt_enable(uint8_t trigger_mode) {
 static inline void comp_interrupt_disable(void) {
     ACSR &= ~(1 << ACIE);
 }
+
+// Route the Negative (-) input to an Analog Pin (PC0 - PC5) instead of PD7
+static inline void comp_use_adc_pin(uint8_t adc_channel) {
+    // 1. MUST turn off the ADC hardware to borrow its multiplexer!
+    ADCSRA &= ~(1 << ADEN);
+
+    // 2. Turn on the bridge between the ADC MUX and the Comparator
+    ADCSRB |= (1 << ACME);
+
+    // 3. Clear the old pin selection in the MUX (bits 2, 1, 0)
+    ADMUX &= ~0x07;
+
+    // 4. Set the new pin!
+    // (e.g., 5 = PC5, 4 = PC4, 3 = PC3)
+    ADMUX |= (adc_channel & 0x07);
+}
