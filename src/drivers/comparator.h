@@ -28,7 +28,8 @@ static inline uint8_t comp_read(void) {
 
 // ── Advanced Configuration ─────────────────────────────────────────
 
-// Use internal 1.1V Bandgap instead of AIN0 pin for negative input
+// Route internal 1.1V bandgap to the POSITIVE (+) input in place of AIN0/PD6.
+// Note: bandgap is hardware-locked to (+). Use comp_use_adc_pin() for the (-) side.
 static inline void comp_use_bandgap(uint8_t enable) {
     if (enable) {
         ACSR |=  (1 << ACBG);
@@ -41,7 +42,20 @@ static inline void comp_use_bandgap(uint8_t enable) {
 
 // Configure and enable the comparator hardware interrupt
 static inline void comp_interrupt_enable(uint8_t trigger_mode) {
+    // Disable interrupt temporarily while changing settings
+    ACSR &= ~(1 << ACIE);
+
+    // Clear the old trigger mode bits (ACIS1 and ACIS0)
+    ACSR &= ~((1 << ACIS1) | (1 << ACIS0));
+
+    // Set the new trigger mode
     ACSR |= (trigger_mode << ACIS0);
+
+    // Clear any pending interrupt flags (write 1 to ACI to clear it!)
+    ACSR |= (1 << ACI);
+
+    // Re-enable the interrupt
+    ACSR |= (1 << ACIE);
 }
 
 // Disable the comparator interrupt
