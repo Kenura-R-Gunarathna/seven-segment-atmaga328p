@@ -72,6 +72,11 @@ uint8_t charset_get_char(char c) {
         return 0x02;
     }
 
+    // 2b. Handle decimal point as a standalone glyph
+    if (c == '.') {
+        return CHARSET_DP;
+    }
+
     // 3. Convert lowercase to uppercase automatically
     if (c >= 'a' && c <= 'z') {
         c -= 32;

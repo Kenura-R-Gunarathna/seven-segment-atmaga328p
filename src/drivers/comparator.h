@@ -58,6 +58,10 @@ static inline void comp_interrupt_enable(uint8_t trigger_mode) {
     ACSR |= (1 << ACIE);
 }
 
+static inline uint8_t is_comp_interrupt_enabled(void) {
+    return ACSR & (1 << ACIE);
+}
+
 // Disable the comparator interrupt
 static inline void comp_interrupt_disable(void) {
     ACSR &= ~(1 << ACIE);
