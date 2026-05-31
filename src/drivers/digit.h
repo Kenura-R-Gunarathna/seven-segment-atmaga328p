@@ -1,32 +1,33 @@
 #pragma once
 
-#include "gpio.h"
+#include "spi595.h"
 
-// Digit select pins — common anode/cathode control
-// HIGH = digit active (adjust if your display is common cathode)
-static const GPIO* DIG_MAP[] = {
-    &DIG_1,   // index 0
-    &DIG_2,   // index 1
-    &DIG_3,   // index 2
-    &DIG_4,   // index 3
-};
+// Digit select — drives the digit-transistor 595.
+// Confirmed empirically: D1=bit5 (0x20), D4=bit2 (0x04). Linear run:
+//   D1=bit5, D2=bit4, D3=bit3, D4=bit2.
+// If a digit lands in the wrong spot, just edit this table.
+static const uint8_t DIG_BIT[4] = { 2, 3, 4, 5 };   // index 0..3 -> physical L..R
 
-// select one, deselect all others in one loop (data route pin)
+// select one, deselect all others
 void digit_select_only(uint8_t d) {
-    for (uint8_t i = 0; i < 4; i++) {
-        gpio_write(*DIG_MAP[i], i == d ? HIGH : LOW);
-    }
+    sr_dig = (1 << DIG_BIT[d]);
+    sr_flush();
 }
 
-// just activate one data route pin
-void digit_select(uint8_t d)   { gpio_high(*DIG_MAP[d]); }
+// activate one digit
+void digit_select(uint8_t d) {
+    sr_dig |= (1 << DIG_BIT[d]);
+    sr_flush();
+}
 
-// just deactivate one data route pin
-void digit_deselect(uint8_t d) { gpio_low(*DIG_MAP[d]);  }
+// deactivate one digit
+void digit_deselect(uint8_t d) {
+    sr_dig &= ~(1 << DIG_BIT[d]);
+    sr_flush();
+}
 
-// deactivate all data route pins
+// deactivate all digits
 void digit_deselect_all(void) {
-    for (uint8_t i = 0; i < 4; i++) {
-        gpio_low(*DIG_MAP[i]);
-    }
+    sr_dig = 0;
+    sr_flush();
 }
