@@ -9,3 +9,4 @@ build/
 *.lss
 *.sym
 *.map
+tools/__pycache__/

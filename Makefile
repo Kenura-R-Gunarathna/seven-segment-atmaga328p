@@ -2,7 +2,7 @@
 # Optimized for size and includes diagnostic outputs
 
 MCU      = atmega328p
-F_CPU    = 8000000UL
+F_CPU    = 16000000UL
 TARGET   = $(notdir $(CURDIR))
 FORMAT   = ihex
 
@@ -27,9 +27,9 @@ BITCLOCK = 5.33
 PROGRAMMER = usbasp
 PORT = usb
 
-# Fuses (Internal 8MHz RC, no CKDIV8 = 8MHz)
-# 1MHz was LFUSE=0x62; 16MHz crystal later -> LFUSE=0xFF (+ HFUSE/EFUSE same)
-LFUSE    = 0xE2
+# Fuses (External 16MHz crystal on PB6/PB7, no CKDIV8)
+# History: 1MHz=0x62, 8MHz internal=0xE2, 16MHz crystal=0xFF
+LFUSE    = 0xFF
 HFUSE    = 0xD9
 EFUSE    = 0xFF
 

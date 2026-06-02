@@ -21,12 +21,13 @@
 
 #define REF_LOW_CH   4
 #define REF_HIGH_CH  3
-#define T1_PS_BITS   (1 << CS11)   // /8 -> 1 us/tick @ 8 MHz
+#define T1_PS_BITS   (1 << CS11)   // /8 -> 0.5 us/tick @ 16 MHz crystal
 
 #define N_SAMPLES    30
 #define N_TRIM       3
 #define DT_MIN       200U          // below -> bigger R (too fast / quantized)
 #define DT_MAX       58000U        // above -> smaller R (slow; <65535 wrap)
+#define N_TARGET     6000U         // aim point for the interpolation jump (mid-window)
 #define MEAS_TIMEOUT 200UL         // ms backstop for a single reading
 #define DISCHARGE_MAX 500UL        // ms cap on adaptive discharge
 
@@ -34,15 +35,17 @@
 #define FORCE_RANGE  -1
 
 // Calibration: C[pF] = dt * CAL_K / R + CAL_B.
-// From C7 2-point fit (10nF dt=733, 100nF dt=7788): a=12.76 pF/tick, b=650 pF.
-// CAL_K = a*R = 12.76 * 99300.  Refine with the Phase-3 sim across ranges.
-#define CAL_K        1266700UL
+// At 16 MHz (0.5 us/tick) the ideal is CAL_K = t_tick*1e12/ln2 = 0.5e-6*1e12/0.693
+// ~= 721500. The crystal removes the old ~0.88 internal-RC correction, so the
+// re-fitted value should sit near this ideal. RECALIBRATE with two known film
+// caps (see plan): CAL_K = a*R, CAL_B = b.  CAL_B (stray) is ~clock-independent.
+#define CAL_K        721500UL
 #define CAL_B        650L
 
-// Measured channel resistors (ohms), C0..C10. C11..C15 unpopulated.
+// Measured channel resistors (ohms), C0..C11. C12..C15 unpopulated.
 static const uint32_t MUX_R[] = {
     10UL, 56UL, 554UL, 980UL, 5519UL, 9860UL,
-    56370UL, 99300UL, 560000UL, 1050000UL, 5600000UL
+    56370UL, 99300UL, 560000UL, 1050000UL, 5600000UL, 10000000UL
 };
 #define NUM_RANGES (sizeof(MUX_R) / sizeof(MUX_R[0]))
 
@@ -114,20 +117,34 @@ static uint16_t measure_once(void) {
     return t_high - t_low;
 }
 
-// Step the range until a single reading lands in [DT_MIN, DT_MAX].
-// Larger R (higher ch) -> longer dt. Returns chosen channel.
+// Find a channel whose reading lands in [DT_MIN, DT_MAX]. Hybrid search:
+//   1. warm-start probe at the last-used channel (0 extra cost for similar caps)
+//   2. on a miss, JUMP straight to the computed channel: since N ~ R*C, the
+//      resistance for a mid-window count is  R_target = R_ch * N_TARGET / N
+//   3. short bounded verify-walk from the jumped channel (lands within ~1 step)
+// This removes the "wildly different cap" penalty of a plain linear walk.
 static uint8_t auto_range(void) {
-    uint8_t ch = g_range;
-    for (uint8_t tries = 0; tries < NUM_RANGES + 2; tries++) {
-        mux_select(ch);
-        uint16_t d = measure_once();
-        if (d == 0 || d > DT_MAX) {              // too slow / overflow -> smaller R
-            if (ch > 0) { ch--; continue; } else break;
+    uint8_t  ch = g_range;
+    mux_select(ch);
+    uint16_t N = measure_once();                 // 1) warm-start probe
+
+    if (N < DT_MIN || N > DT_MAX) {              // miss -> interpolation jump
+        uint32_t Nc = (N == 0) ? 100000UL : N;   // overflow/timeout -> treat as huge
+        uint32_t r_target = (uint32_t)((uint64_t)MUX_R[ch] * N_TARGET / Nc);
+
+        uint8_t j = 0;                            // largest channel with R <= target
+        for (uint8_t i = 0; i < NUM_RANGES; i++) {
+            if (MUX_R[i] <= r_target) { j = i; }
         }
-        if (d < DT_MIN) {                        // too fast -> bigger R
-            if (ch < NUM_RANGES - 1) { ch++; continue; } else break;
+        ch = j;
+
+        for (uint8_t k = 0; k < NUM_RANGES; k++) {   // 3) bounded verify-walk
+            mux_select(ch);
+            N = measure_once();
+            if (N == 0 || N > DT_MAX) { if (ch > 0) ch--; else break; }
+            else if (N < DT_MIN)      { if (ch < NUM_RANGES - 1) ch++; else break; }
+            else break;                              // in window
         }
-        break;                                   // in window
     }
     g_range = ch;
     return ch;

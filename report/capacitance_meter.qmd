@@ -46,12 +46,17 @@ capacitance into a time interval — using nothing more exotic than a resistor
 charging a capacitor — and counts that interval with a hardware timer. The
 design's value lies in arranging the measurement so the result depends only on
 quantities we know well (a resistor and a clock) and not on those we do not
-(the exact supply, the comparator's switching point, or temperature). We derive
-the measurement equation (§2), motivate automatic ranging mathematically and
-physically (§3), describe the architecture (§4) and calibration (§5), and
-present and discuss results (§6–7).
+(the exact supply, the comparator's switching point, or temperature).
 
-# The measurement principle
+The report is organised as a standard development narrative: the measurement
+**theory** and the case for automatic ranging (§2); the **design and
+implementation** — architecture, pin-level operation, and the range-search
+algorithm (§3); the **calibration methodology** (§4); the measured **results**
+(§5); a **discussion and error analysis**, including a calibration simulation
+(§6); a **comparison with professional instruments** (§7); and **conclusions**
+(§8).
+
+# Theory: the measurement principle
 
 ## The RC step response
 
@@ -130,13 +135,13 @@ hobby circuit, has vanished. These particular thresholds — one-third and
 two-thirds of the rail — will be familiar: they are the same levels used
 internally by the classic 555 timer, and for the same reason.
 
-# Why automatic ranging is necessary
+## The need for automatic ranging
 
 @eq-C suggests that *any* resistor would do. In practice a fixed resistor
 measures only a narrow band of capacitance, for two independent reasons — one
 arising from the digital timer, the other from the physics of the *RC* circuit.
 
-## The mathematical argument: a bounded counter
+### The mathematical argument: a bounded counter
 
 The interval $\Delta t$ is not measured continuously but counted in discrete
 timer ticks of duration $t_\text{tick}$:
@@ -168,7 +173,7 @@ $\Delta t$ inside the good window as $C$ varies requires scaling $R$
 geometric ladder of resistors, each a fixed multiple of the last, tiles the
 whole span with overlapping windows.
 
-## The physical argument: matching the timescale
+### The physical argument: matching the timescale
 
 The same conclusion follows from physics. The time constant $\tau = RC$ sets how
 quickly the capacitor charges. If $\tau$ is *too short* (small $R\,C$) the node
@@ -186,7 +191,9 @@ appropriate units on a stopwatch when timing a sprinter versus a glacier: one
 matches the scale of the tool to the magnitude of the quantity, so that the full
 resolution is used without running off the end of the scale.
 
-# Instrument architecture
+# Design and implementation
+
+## System architecture
 
 ```
         Cx ─ R(range) ─ node ─► analog comparator ─► Timer1 input capture
@@ -215,6 +222,83 @@ through 74-series shift registers over hardware SPI, and results are streamed as
 ASCII over UART to an HC-06 Bluetooth module, which also lets a host trigger
 measurements remotely for collecting the calibration dataset below.
 
+## Pin assignment and the capture sequence
+
+Two microcontroller pins do the analogue work. **PB0** is the charge/discharge
+drive: as a *switchable* supply it is driven HIGH ($\approx V_{cc}$) to charge
+$C_x$ through the range resistor, and LOW to discharge it — which is why the
+node is not tied to $V_{cc}$ directly (we would lose the ability to reset).
+**PD6** is the comparator's positive input (AIN0); being high-impedance it
+*senses* the node voltage without disturbing the charging.
+
+The comparator's negative input is, by default, the pin AIN1 (PD6's neighbour,
+PD7). We do **not** use it: setting the `ACME` bit (with the ADC disabled)
+reroutes the negative input to the **ADC multiplexer**, so the threshold is
+chosen in firmware by writing `ADMUX` — **PC4** for $\tfrac13 V_{cc}$ or **PC3**
+for $\tfrac23 V_{cc}$. This frees the AIN1 pin (PD7), which is then reused as a
+plain output: the 4067 channel-select bit **S3** (S0–S2 being PC0–PC2).
+
+A measurement proceeds in two distinct phases — only one of which is *timed*:
+
+| Step | Reference (−) | Node sensed by | Timer |
+|:--|:--|:--|:--|
+| Discharge (reset) | PC4 (⅓Vcc) | poll `ACO` *level* until 0 | — |
+| Charge → `t_low` | PC4 (⅓Vcc) | rising-edge **capture** | latched |
+| Charge → `t_high` | PC3 (⅔Vcc) | rising-edge **capture** | latched |
+
+The discharge is a *software level poll* — we wait until the comparator reports
+the node has fallen below $\tfrac13 V_{cc}$ — which adapts automatically to any
+$RC$ and is never timed. Only the charge is timed: with the input-capture edge
+set to *rising* (`ICES1=1`), the comparator output routed internally to Timer1
+(`ACIC`) latches `TCNT1` in hardware as the node crosses each threshold, free of
+interrupt latency. The interval is $\Delta t = t_\text{high} - t_\text{low}$,
+which by @eq-ln2 equals $RC\ln 2$.
+
+In firmware the interval is a tick count, $\Delta t = N\,t_\text{tick}$ with
+$t_\text{tick} = 1\ \mu\text{s}$ (8 MHz, $\div 8$ prescaler), and the reported
+value uses the calibrated affine form
+
+$$
+C[\text{pF}] = N\,\frac{\text{CAL\_K}}{R} + \text{CAL\_B},
+$$
+
+where $\text{CAL\_K}=1/p$ folds the clock and $\ln 2$, $\text{CAL\_B}$ is the
+offset, and $R$ is the selected channel's resistance (ideally $R_\text{nom}+R_\text{on}$).
+
+## The range-search algorithm
+
+Selecting the channel needs no knowledge of $C$. The decision is a single test
+on the tick count $N$: a channel is **correct when $N \in [N_\text{min},
+N_\text{max}] = [200,\,58000]$** — above which the count overflows the 16-bit
+timer, below which $\pm 1$-tick quantization exceeds tolerance. Since
+$N \propto R\,C$ and $C$ is fixed, the instrument simply changes $R$ until $N$
+falls in this window.
+
+The first implementation was a **warm-started, direction-guided linear search**:
+start at the last-used channel (`g_range`, initialised mid-ladder), and step one
+channel toward smaller $R$ if $N$ is too large or larger $R$ if too small,
+stopping at the first in-window channel. With only eleven geometrically-spaced
+channels and a remembered start, repeated similar capacitors resolve in zero or
+one step. Its weakness is a *cold* jump between very different capacitors, which
+walks one channel at a time across the ladder.
+
+This is removed by an **interpolation step**. Because $N \propto R\,C$, a single
+probe predicts the ideal resistance directly:
+
+$$
+R_\text{target} = R_\text{ch}\,\frac{N_\text{target}}{N_\text{measured}},
+$$ {#eq-interp}
+
+so the search jumps straight to the channel nearest $R_\text{target}$ and
+confirms with one short verify step (an overflowed probe is treated as a large
+$N$, forcing a downward jump). The result is **hybrid**: the warm-start probe
+costs nothing for repeated similar caps, and the interpolation jump bounds *any*
+cold transition to ~2–3 measurements regardless of how many decades apart the
+capacitors are — the equivalent of interpolation search over the range ladder.
+
+*(Empirical convergence counts for the hybrid search, and the assembled-circuit
+schematics, will be added once measured on the rebuilt hardware.)*
+
 # Calibration methodology
 
 ## The need for, and form of, calibration
@@ -235,7 +319,28 @@ $$
 C = a\,\Delta t + b,
 $$ {#eq-cal}
 
-with slope $a$ (in pF per tick) and intercept $b$ (in pF).
+with slope $a$ (in pF per tick) and intercept $b$ (in pF). This form is not
+assumed but *derived*: writing the measured interval with both error types
+present,
+
+$$
+\Delta t = \underbrace{\frac{\ln 2\,\cdot R}{t_\text{tick}}}_{\text{slope}}\,
+           (C + C_\text{stray}) \;+\; t_\text{delay},
+$$ {#eq-physmodel}
+
+and solving for $C$ gives
+
+$$
+C = \underbrace{\frac{t_\text{tick}}{R\ln 2}}_{a}\,\Delta t
+  \;-\; \underbrace{\left(\frac{t_\text{delay}\,t_\text{tick}}{R\ln 2}
+        + C_\text{stray}\right)}_{-\,b},
+$$
+
+so the **slope** carries the multiplicative errors and the **intercept** lumps
+the additive ones ($C_\text{stray}$ and the comparator/mux delay). A purely
+proportional law ($b=0$) would force the calibration line through the origin;
+the measured intercept of $\approx +650$ pF (Fig. @fig-cal) is direct evidence
+that the offset is real and the affine form is the correct one.
 
 ## Two-point calibration
 
@@ -248,8 +353,8 @@ b = C_1 - a\,\Delta t_1 .
 $$ {#eq-twopoint}
 
 A *single* point would fix only the slope and force the line through the origin
-($b = 0$); we shall see in Section 6 that this is inadequate, because a non-zero
-offset is present. Two points capture both parameters, so the calibrated line is
+($b = 0$); the results of §5 show this is inadequate, because a non-zero offset
+is present. Two points capture both parameters, so the calibrated line is
 correct across the whole range rather than at one capacitor only.
 
 ## A shortcut from measured resistors
@@ -284,7 +389,7 @@ charge cycles (@tbl-c7).
 | 1 µF | overflow | No — too slow |
 
 : Channel-7 characterization. The usable window (≈ 3–90 nF) agrees with the
-predicted span of Section 3. {#tbl-c7}
+predicted span of §2.4. {#tbl-c7}
 
 Applying the two-point fit of @eq-twopoint to the 10 nF and 100 nF points,
 
@@ -309,6 +414,55 @@ b = 10000 - a*733                      # = 650 pF
 # C = a·Δt + b  (see eq. for the affine calibration model)
 ```
 
+## Raw measurement data and repeatability
+
+Each value above is not a single shot but the **trimmed mean of 30 charge
+cycles** (the three highest and three lowest discarded, the middle 24 averaged);
+the median is reported alongside as a cross-check. @tbl-stats summarises the
+repeatability of the channel-7 runs.
+
+| Capacitor | trimmed mean $\Delta t$ | min | max | median | spread $(\max-\min)/\bar{}$ |
+|:--|--:|--:|--:|--:|--:|
+| 100 pF | 12 | 12 | 13 | 12 | (out of window) |
+| 10 nF | 733 | 696 | 760 | 736 | 8.7 % |
+| "104" ceramic | 2802 | 2665 | 3360 | 2802 | 24.8 % |
+| 50 nF | 3579 | 2943 | 4048 | 3587 | 30.9 % |
+| 100 nF | 7788 | 6780 | 9228 | 7777 | 31.4 % |
+
+: Channel-7 repeatability over 30 cycles. The close agreement of trimmed mean and
+median confirms a stable central estimate despite the per-shot scatter. {#tbl-stats}
+
+The single-shot scatter (the comparator dithering at the slow crossing, §6.2) is
+visible in the complete channel-7 runs below (Δt in timer ticks, 30 cycles each):
+
+```
+100 pF  (out of window — only ~12 ticks, kept for completeness):
+   13 12 12 12 12 12 13 13 13 13 12 12 12 12 12
+   12 12 12 12 12 12 12 12 13 12 13 13 13 12 12                 -> 12
+
+ 10 nF  [calibration anchor]:
+   732 699 709 735 746 749 744 731 759 738 721 707 719 729 732
+   737 760 749 736 734 742 727 696 715 740 740 738 713 755 744  -> 733
+
+104 ceramic (~40 nF; DC-bias loss):
+   3360 2700 2881 2809 2826 2744 2774 2903 2799 2811 2828 2802 2734 2813 2882
+   2777 3082 2790 2839 2755 2795 2698 2790 2665 2771 3088 2670 2851 2812 2774 -> 2802
+
+ 50 nF:
+   3676 3637 3590 3695 3651 3516 3661 3706 3344 4048 3572 3587 3550 3491 3501
+   3495 3423 3508 3547 3510 3721 3511 3714 3601 3648 2943 3493 3360 3616 3758 -> 3579
+
+100 nF  [calibration anchor]:
+   9228 7637 7661 7940 8097 7713 7864 7524 7536 8687 7775 7954 8048 7912 7807
+   7972 7681 7687 7586 7674 7837 8230 7877 7866 7777 7759 6873 6780 7659 7594 -> 7788
+```
+
+The two **anchors** marked above — $(733,\,10\,\text{nF})$ and
+$(7788,\,100\,\text{nF})$ — are the points fed to the two-point calibration;
+trimming discards the obvious outliers (e.g. the 9228 and 6780 in the 100 nF
+run) before the fit. The 50 nF and 104 runs serve as independent checks, and the
+100 pF run shows directly why an out-of-window count (≈12 ticks) is unusable.
+
 ## Automatic-ranging across seven decades
 
 With ranging enabled and the channel-7 calibration applied, capacitors from
@@ -322,13 +476,13 @@ appropriate channel in every case.
 | 2.2 µF | R5 | 2.07 µF | within electrolytic tolerance |
 | 10 µF | R4 (5.5 kΩ) | 8.76 µF | within electrolytic tolerance |
 | 47 µF | R3 | 46.5 µF | accurate |
-| 220 µF | R1 (56 Ω) | **715 µF** | gross error — see §7 |
-| 680 µF | R0 (10 Ω) | overflow | beyond range — see §7 |
+| 220 µF | R1 (56 Ω) | **715 µF** | gross error — see §6.1 |
+| 680 µF | R0 (10 Ω) | overflow | beyond range — see §6.1 |
 
 : Auto-ranging results. The selection logic is correct throughout; accuracy is
 excellent wherever the multiplexer resistance is negligible. {#tbl-auto}
 
-# Discussion
+# Discussion and error analysis
 
 ## Multiplexer on-resistance
 
@@ -380,7 +534,7 @@ capacitance under DC bias, whereas the film and electrolytic parts read within
 tolerance. The meter reports the *actual* capacitance at the test conditions,
 not the nameplate value.
 
-# Calibration simulation
+## Calibration simulation
 
 To generalize the calibration across all ranges, the measurement was modelled
 in software as
@@ -397,7 +551,7 @@ trial $R_\text{on}$ the model is linear in $(p,\,p\,C_\text{stray})$, fitted by
 weighted least squares (film references weighted above $\pm20\%$ electrolytics).
 
 The fit recovers a multiplexer resistance $R_\text{on}\approx 75$–$150\ \Omega$
-(consistent with the direct estimate of §7.1), a slope correction of $1.08$
+(consistent with the direct estimate of §6.1), a slope correction of $1.08$
 (within the internal oscillator's $\pm10\%$), and a stray offset of $\approx
 600$ pF that independently reproduces the C7 two-point intercept — confirming
 the offset is a genuine, range-independent stray. @fig-coverage shows the eleven
@@ -414,6 +568,48 @@ multiplexer resistance and an under-determined offset. A definitive universal
 calibration awaits **film reference capacitors measured on the low-resistance
 channels**, which the $\pm20\%$ electrolytics used here cannot provide.
 
+# Comparison with professional instruments
+
+It is instructive to compare this DC charge-timing instrument with how
+laboratory-grade meters work, because the professional techniques map directly
+onto the error sources identified above.
+
+**AC auto-balancing bridge (LCR meters).** Rather than a DC charge, an LCR meter
+applies a small *sinusoidal* test voltage at a chosen frequency and measures the
+resulting current with a transimpedance amplifier whose input is held at virtual
+ground. Since a capacitor's impedance is $Z = 1/(j\omega C)$, the magnitude and
+phase of $V/I$ — recovered by synchronous (lock-in) detection — yield $C$ *and*
+the loss terms (ESR, dissipation factor $D$, quality factor $Q$) as the real and
+imaginary parts. This measures the part under its rated small-signal conditions
+and rejects noise far better than a single DC interval can.
+
+**Constant-current charge (bench DMMs).** A simpler professional method charges
+the capacitor from a *constant current source* rather than through a resistor,
+so the voltage ramps **linearly**: $Q = I t = C V \Rightarrow C = I t / V$. The
+linear ramp avoids the logarithm of an exponential and removes the
+resistor-tolerance term altogether.
+
+The decisive point is calibration. Each limitation we met has a standard
+professional remedy:
+
+| Our limitation | Professional remedy |
+|:--|:--|
+| Mux $R_\text{on}$ / contact resistance (220 µF read 3× high) | **Kelvin (4-wire) sensing** — separate force/sense leads carry no sense current through the series resistance; plus a **SHORT** calibration |
+| Stray capacitance (≈ 600 pF offset) | **OPEN** calibration — measure with terminals open, subtract the stray |
+| Clock error (internal RC ±10 %) | crystal / TCXO timebase (our planned 16 MHz upgrade) |
+| Comparator jitter (±15 % scatter) | synchronous (lock-in) detection + averaging |
+| Auto-ranging | switched precision feedback resistor *and* test frequency, calibrated out |
+| Ceramic DC-bias loss ("104" → 40 nF) | programmable **DC bias** with $C$-vs-bias characterization |
+
+The headline is that **OPEN/SHORT calibration** — the cornerstone of every
+professional bridge — is precisely the formalization of our corrections:
+**OPEN** is our stray term $C_\text{stray}$, **SHORT** is our multiplexer
+$R_\text{on}$. In that sense our instrument occupies the *DC RC-timing* tier; the
+next step up is constant-current timing, and the professional tier is the AC
+auto-balancing bridge with Kelvin sensing, a crystal timebase, lock-in detection
+and OPEN/SHORT calibration — which additionally yields ESR and the behaviour
+versus frequency and bias that a single DC measurement cannot.
+
 # Conclusions and future work
 
 We have realized a supply-independent, auto-ranging capacitance meter on a
@@ -428,6 +624,6 @@ Three refinements are proposed. First, replacing the nominal ladder values with
 **measured effective resistances** will recover accuracy on the low-$\Omega$
 channels. Second, a **per-range timer prescaler** will extend the upper limit to
 the millifarad region. Third, a **multi-point least-squares calibration** across
-ranges — the basis of the planned simulation study — will distinguish a constant
+ranges — extending the simulation of §6.3 — will distinguish a constant
 stray-capacitance offset from a resistance-dependent timing offset and thereby
 deliver uniform accuracy across all seven decades.

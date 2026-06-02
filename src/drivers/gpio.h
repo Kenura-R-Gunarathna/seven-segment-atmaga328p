@@ -40,12 +40,10 @@ void    gpio_tog(GPIO g)  { *g.port ^= (1 << g.bit); }
 // ── pin definitions ────────────────────────────────────────────────
 // Segments + digit selects now live on the 595 chain (see spi595.h);
 // they are no longer direct AVR pins.
-static const GPIO GLED   = { &DDRB, &PORTB, &PINB, PB6 }; // GLED
-static const GPIO GND    = { &DDRB, &PORTB, &PINB, PB7 }; // GND
+// NOTE: PB6/PB7 are the 16 MHz crystal pins (XTAL1/XTAL2) — they must NOT be
+// driven as GPIO, or the oscillator will not start.
 
 // ── helpers ────────────────────────────────────────────────────────
 void gpio_set_all_output(void) {
     spi595_init();                  // segments + digits via SPI shift registers
-    gpio_init(GLED, OUTPUT, LOW);
-    gpio_init(GND, OUTPUT, LOW);
 }
