@@ -1,48 +1,46 @@
-// main.c — Auto-ranging capacitance meter.
-// Hardware: ATmega328P @ 16 MHz crystal.
-// See CAP_METER.md for full wiring.
+/*
+ * Phase 2.0 -- DDS function generator + 16-bit SAR oscilloscope, 3 modes.
+ *
+ * UART commands:
+ *   f<hz>      set frequency 1-20000 Hz (1-10000 in BOTH mode)
+ *   w<0-3>     set waveform: 0=sin 1=sqr 2=tri 3=saw
+ *   m<0-2>     mode: 0=FG only  1=OSC only  2=BOTH
+ *   o          single SAR voltage measurement
+ *   os<n>      stream n SAR samples (millivolts per line, n 1-1000)
+ *   oi         single internal ADC reading
+ *   oi<n>      stream n internal ADC samples
+ *   d<hex4>    write raw 16-bit hex to SAR DAC (test)
+ *   s          status report
+ */
 
 #include <avr/io.h>
-#include "drivers/millis.h"
-#include "drivers/gpio.h"
-#include "drivers/display.h"
-#include "drivers/scroll.h"
-#include "drivers/uart.h"
-#include "drivers/hc06.h"
-#include "drivers/mux4067.h"
-#include "drivers/capmeas.h"
+#include <avr/interrupt.h>
 
-static const GPIO BUTTON = { &DDRD, &PORTD, &PIND, PD2 };
+#include "drivers/led_status.h"
+#include "drivers/dds.h"
+#include "drivers/uart.h"
+#include "drivers/dac16.h"
+#include "drivers/sar_osc.h"
+#include "drivers/adc_int.h"
+#include "drivers/cmd.h"
+
+extern void millis_init(void);
 
 int main(void) {
-    gpio_set_all_output();   // SPI/595 display chain
+    led_boot_signature();
     millis_init();
-    uart_init();             // HC-06 UART (PD0/PD1, 9600 8N1)
-    mux4067_init();          // CD4067 select lines (PC0-PC2, PD7)
-    capmeas_init();          // Timer1 input-capture + comparator
+    led_init();
+    dds_init();
+    dac16_init();
+    sar_init();
+    adc_int_init();
+    uart_init();
     sei();
 
-    gpio_init(BUTTON, INPUT, HIGH);  // push button (PD2, active-low)
-    mux_select(g_range);
+    dds_set_wave(0);
+    dds_set_freq(1000);
+    led_set_state(LS_SINE, 1000);
+    uart_puts("FG f1000 w0 m0\r\n");
 
-    hc06_ready();
-    scroll_start("    MEASURE    ", 300);
-    uint8_t last_sw = HIGH;
-
-    for (;;) {
-        display_refresh();
-        scroll_tick();
-
-        uint8_t  sw  = gpio_read(BUTTON);
-        int16_t  rx  = hc06_getc();
-        uint8_t  go  = (sw == LOW && last_sw == HIGH)
-                    || hc06_is_trigger(rx);
-        last_sw = sw;
-
-        if (go) {
-            capmeas_run();
-            while (gpio_read(BUTTON) == LOW) { display_refresh(); }
-        }
-    }
-    return 0;
+    for (;;) { led_update(); cmd_poll(); }
 }

@@ -1,0 +1,8 @@
+pyserial>=3.5
+numpy>=1.21
+scipy>=1.7
+matplotlib>=3.4
+# Hantek 6022 scope driver (Linux: also needs libusb-1.0-0-dev)
+# Install: pip install hantek6022api
+# OR clone: https://github.com/Ho-Ro/Hantek6022API
+hantek6022api>=1.0

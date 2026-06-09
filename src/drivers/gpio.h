@@ -38,10 +38,8 @@ void    gpio_tog(GPIO g)  { *g.port ^= (1 << g.bit); }
 #define gpio_init(g, mode, val) do { gpio_mode(g, mode); gpio_write(g, val); } while(0)
 
 // ── pin definitions ────────────────────────────────────────────────
-// Segments + digit selects now live on the 595 chain (see spi595.h);
-// they are no longer direct AVR pins.
-// NOTE: PB6/PB7 are the 16 MHz crystal pins (XTAL1/XTAL2) — they must NOT be
-// driven as GPIO, or the oscillator will not start.
+// ATmega32A: XTAL1/XTAL2 are on dedicated pins 12/13, not port pins.
+// PB5=MOSI, PB7=SCK are used by SPI — do not use as general GPIO.
 
 // ── helpers ────────────────────────────────────────────────────────
 void gpio_set_all_output(void) {
