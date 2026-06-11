@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Function Generator — Component-Level Schematics</title>
+<style>
+  :root{--bg:#0b0f17;--ink:#e6edf3;--muted:#8b98a8;--wire:#9fb0c3;}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:ui-sans-serif,Segoe UI,Roboto,Arial,sans-serif}
+  header{padding:16px 24px;border-bottom:1px solid #1e2a3a}
+  h1{margin:0;font-size:18px}
+  h2{font-size:15px;color:#cbd5e1;margin:26px 24px 4px;
+     border-left:3px solid #3b82f6;padding-left:10px}
+  .desc{color:var(--muted);font-size:12.5px;margin:0 24px 8px}
+  .wrap{padding:6px 12px 40px;overflow:auto}
+  svg{display:block;background:#0d131d;border:1px solid #1e2a3a;border-radius:10px;
+      margin:6px auto;max-width:100%}
+  text{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .w{stroke:var(--wire);stroke-width:1.6;fill:none}
+  .sym{stroke:var(--wire);stroke-width:1.6;fill:none}
+  .ic{fill:none;stroke:#cbd5e1;stroke-width:1.6}
+  .ref{fill:#f59e0b;font-size:11px}
+  .val{fill:#9fb0c3;font-size:10.5px}
+  .net{fill:#7dd3fc;font-size:11px}
+  .pwr{fill:#fca5a5;font-size:11px}
+  .lbl{fill:#cbd5e1;font-size:11px}
+  .dot{fill:var(--wire)}
+</style>
+</head>
+<body>
+<header>
+  <h1>ATmega32A Function Generator — Component-Level Schematics</h1>
+  <div class="desc" style="margin-top:6px">Symbols: ▭ resistor · ▷ op-amp · ◯ transistor · ▸| diode · ‖ cap. Companion to <code>circuit_diagram.html</code> (block flow) and <code>FINAL_CIRCUIT.md</code>.</div>
+</header>
+
+<!-- ================= STAGE A ================= -->
+<h2>A · Signal R-2R DAC → Buffer → U7 centering summer</h2>
+<p class="desc">The ladder's 0–5V is buffered, then split to the scope comparator and to U7, which subtracts 2.5V (via 32k from −8V) to centre the signal on 0V.</p>
+<div class="wrap">
+<svg viewBox="0 0 1080 380" width="1080" height="380">
+  <!-- 595 pair -->
+  <rect class="ic" x="20" y="40" width="90" height="120"/>
+  <text class="lbl" x="65" y="34" text-anchor="middle">IC1 595</text>
+  <rect class="ic" x="20" y="190" width="90" height="120"/>
+  <text class="lbl" x="65" y="184" text-anchor="middle">IC2 595</text>
+  <text class="net" x="65" y="335" text-anchor="middle">D15..D0</text>
+
+  <!-- R-2R ladder (representative 3 bits + ...) -->
+  <!-- spine node n -->
+  <text class="lbl" x="150" y="34">R-2R ladder (16-bit)</text>
+  <!-- series 10k between nodes -->
+  <line class="w" x1="120" y1="100" x2="150" y2="100"/>
+  <rect class="sym" x="150" y="94" width="30" height="12"/><text class="ref" x="165" y="88" text-anchor="middle">Ra</text><text class="val" x="165" y="122" text-anchor="middle">10k</text>
+  <line class="w" x1="180" y1="100" x2="220" y2="100"/>
+  <rect class="sym" x="220" y="94" width="30" height="12"/><text class="ref" x="235" y="88" text-anchor="middle">Rs</text><text class="val" x="235" y="122" text-anchor="middle">10k</text>
+  <line class="w" x1="250" y1="100" x2="300" y2="100"/>
+  <text class="lbl" x="300" y="104">···</text>
+  <!-- shunts 22k to GND -->
+  <line class="w" x1="195" y1="100" x2="195" y2="140"/>
+  <rect class="sym" x="189" y="140" width="12" height="30"/><text class="val" x="215" y="160">22k</text>
+  <line class="w" x1="195" y1="170" x2="195" y2="185"/>
+  <path class="sym" d="M183,185 H207 M187,190 H203 M191,195 H199"/>
+  <text class="net" x="120" y="92">Voc 0–5V</text>
+
+  <!-- Buffer op-amp -->
+  <line class="w" x1="330" y1="100" x2="370" y2="100"/>
+  <polygon class="ic" points="370,70 370,130 425,100"/>
+  <text class="lbl" x="383" y="86">+</text><text class="lbl" x="383" y="120">−</text>
+  <text class="ref" x="397" y="148" text-anchor="middle">U-BUF</text>
+  <!-- feedback -->
+  <line class="w" x1="425" y1="100" x2="450" y2="100"/>
+  <line class="w" x1="450" y1="100" x2="450" y2="55"/>
+  <line class="w" x1="450" y1="55" x2="360" y2="55"/>
+  <line class="w" x1="360" y1="55" x2="360" y2="118"/>
+  <line class="w" x1="360" y1="118" x2="370" y2="118"/>
+  <circle class="dot" cx="450" cy="100" r="3"/>
+  <text class="net" x="458" y="96">DACV</text>
+
+  <!-- tap to scope -->
+  <line class="w" x1="450" y1="100" x2="450" y2="330"/>
+  <line class="w" x1="450" y1="330" x2="560" y2="330"/>
+  <text class="net" x="460" y="324">→ SAR comparator</text>
+
+  <!-- to U7 via R7a -->
+  <line class="w" x1="450" y1="100" x2="560" y2="100"/>
+  <rect class="sym" x="560" y="94" width="30" height="12"/><text class="ref" x="575" y="88" text-anchor="middle">R7a</text><text class="val" x="575" y="122" text-anchor="middle">10k</text>
+  <line class="w" x1="590" y1="100" x2="700" y2="100"/>
+
+  <!-- centering from -15... -8V via 32k into same node -->
+  <text class="pwr" x="560" y="195" text-anchor="middle">−8V</text>
+  <line class="w" x1="560" y1="200" x2="560" y2="180"/>
+  <rect class="sym" x="554" y="150" width="12" height="30"/><text class="ref" x="582" y="160">R_cen</text><text class="val" x="582" y="175">32k</text>
+  <line class="w" x1="560" y1="150" x2="560" y2="118"/>
+  <line class="w" x1="560" y1="118" x2="700" y2="118"/>
+  <circle class="dot" cx="700" cy="100" r="3"/>
+
+  <!-- U7 op-amp -->
+  <polygon class="ic" points="700,70 700,135 760,102"/>
+  <text class="lbl" x="713" y="106">−</text>
+  <line class="w" x1="685" y1="125" x2="700" y2="125"/>
+  <line class="w" x1="685" y1="125" x2="685" y2="150"/>
+  <path class="sym" d="M673,150 H697 M677,155 H693 M681,160 H689"/>
+  <text class="lbl" x="710" y="128">+ (GND)</text>
+  <text class="ref" x="730" y="155" text-anchor="middle">U7</text>
+  <!-- U7 feedback R7 -->
+  <line class="w" x1="760" y1="102" x2="800" y2="102"/>
+  <circle class="dot" cx="800" cy="102" r="3"/>
+  <line class="w" x1="800" y1="102" x2="800" y2="60"/>
+  <rect class="sym" x="700" y="54" width="30" height="12"/><text class="ref" x="715" y="48" text-anchor="middle">R7</text><text class="val" x="745" y="64">10k</text>
+  <line class="w" x1="730" y1="60" x2="800" y2="60"/>
+  <line class="w" x1="700" y1="60" x2="690" y2="60"/><line class="w" x1="690" y1="60" x2="690" y2="100"/>
+  <!-- out -->
+  <line class="w" x1="800" y1="102" x2="900" y2="102"/>
+  <text class="net" x="905" y="106">V1 = ±2.5V → filter</text>
+</svg>
+</div>
+
+<!-- ================= STAGE B ================= -->
+<h2>B · Output amp — coarse gain bank (CD4066) + offset summing</h2>
+<p class="desc">Inverting summer. Signal enters through one of the CD4066-selected gain resistors; offset enters through R_off; Rf=51k sets max gain ×5.1 → ±12.75V (cannot clip).</p>
+<div class="wrap">
+<svg viewBox="0 0 1080 400" width="1080" height="400">
+  <text class="net" x="20" y="50">SELSIG ±2.5V</text>
+  <line class="w" x1="20" y1="60" x2="70" y2="60"/>
+  <circle class="dot" cx="70" cy="60" r="3"/>
+  <!-- 4 gain branches -->
+  <!-- each: node -> resistor -> CD4066 switch -> summing node -->
+  <g>
+    <!-- branch 1 -->
+    <line class="w" x1="70" y1="60" x2="70" y2="70"/>
+    <line class="w" x1="70" y1="70" x2="110" y2="70"/>
+    <rect class="sym" x="110" y="64" width="30" height="12"/><text class="val" x="125" y="58" text-anchor="middle">51k ×1</text>
+    <line class="w" x1="140" y1="70" x2="170" y2="70"/>
+    <rect class="ic" x="170" y="60" width="44" height="20"/><text class="lbl" x="192" y="74" text-anchor="middle">SW</text>
+    <line class="w" x1="214" y1="70" x2="430" y2="70"/>
+    <!-- branch 2 -->
+    <line class="w" x1="70" y1="110" x2="110" y2="110"/>
+    <rect class="sym" x="110" y="104" width="30" height="12"/><text class="val" x="125" y="98" text-anchor="middle">25k ×2</text>
+    <line class="w" x1="140" y1="110" x2="170" y2="110"/>
+    <rect class="ic" x="170" y="100" width="44" height="20"/><text class="lbl" x="192" y="114" text-anchor="middle">SW</text>
+    <line class="w" x1="214" y1="110" x2="430" y2="110"/>
+    <!-- branch 3 -->
+    <line class="w" x1="70" y1="150" x2="110" y2="150"/>
+    <rect class="sym" x="110" y="144" width="30" height="12"/><text class="val" x="120" y="138" text-anchor="middle">12.75k ×4</text>
+    <line class="w" x1="140" y1="150" x2="170" y2="150"/>
+    <rect class="ic" x="170" y="140" width="44" height="20"/><text class="lbl" x="192" y="154" text-anchor="middle">SW</text>
+    <line class="w" x1="214" y1="150" x2="430" y2="150"/>
+    <!-- branch 4 -->
+    <line class="w" x1="70" y1="190" x2="110" y2="190"/>
+    <rect class="sym" x="110" y="184" width="30" height="12"/><text class="val" x="120" y="178" text-anchor="middle">10k ×5.1</text>
+    <line class="w" x1="140" y1="190" x2="170" y2="190"/>
+    <rect class="ic" x="170" y="180" width="44" height="20"/><text class="lbl" x="192" y="194" text-anchor="middle">SW</text>
+    <line class="w" x1="214" y1="190" x2="430" y2="190"/>
+    <line class="w" x1="70" y1="60" x2="70" y2="190"/>
+  </g>
+  <text class="lbl" x="192" y="222" text-anchor="middle">CD4066 (U17) — MCU-selected via shift register</text>
+
+  <!-- offset input -->
+  <text class="net" x="20" y="285">OFFSET ±2.5V</text>
+  <line class="w" x1="20" y1="295" x2="110" y2="295"/>
+  <rect class="sym" x="110" y="289" width="30" height="12"/><text class="ref" x="125" y="283" text-anchor="middle">R_off</text><text class="val" x="125" y="313" text-anchor="middle">10k</text>
+  <line class="w" x1="140" y1="295" x2="430" y2="295"/>
+
+  <!-- summing node -->
+  <circle class="dot" cx="430" cy="130" r="3"/>
+  <line class="w" x1="430" y1="70" x2="430" y2="295"/>
+  <line class="w" x1="430" y1="130" x2="470" y2="130"/>
+
+  <!-- output op-amp -->
+  <polygon class="ic" points="470,95 470,165 535,130"/>
+  <text class="lbl" x="483" y="124">−</text>
+  <line class="w" x1="455" y1="152" x2="470" y2="152"/>
+  <line class="w" x1="455" y1="152" x2="455" y2="180"/>
+  <path class="sym" d="M443,180 H467 M447,185 H463 M451,190 H459"/>
+  <text class="lbl" x="480" y="156">+ (GND)</text>
+  <text class="ref" x="503" y="185" text-anchor="middle">OUTPUT AMP</text>
+  <!-- feedback Rf + C -->
+  <line class="w" x1="535" y1="130" x2="600" y2="130"/>
+  <circle class="dot" cx="600" cy="130" r="3"/>
+  <line class="w" x1="430" y1="60" x2="600" y2="60"/>
+  <line class="w" x1="600" y1="60" x2="600" y2="130"/>
+  <rect class="sym" x="490" y="54" width="30" height="12"/><text class="ref" x="505" y="48" text-anchor="middle">Rf</text><text class="val" x="535" y="64">51k</text>
+  <rect class="sym" x="490" y="84" width="30" height="10"/><text class="val" x="540" y="92">22pF</text>
+  <line class="w" x1="430" y1="89" x2="490" y2="89"/><line class="w" x1="520" y1="89" x2="600" y2="89" /><line class="w" x1="600" y1="89" x2="600" y2="60"/>
+  <!-- out -->
+  <line class="w" x1="600" y1="130" x2="720" y2="130"/>
+  <text class="net" x="725" y="134">VOUT ±13V → protection</text>
+</svg>
+</div>
+
+<!-- ================= STAGE C ================= -->
+<h2>C · Dual-rail overcurrent protection</h2>
+<p class="desc">Rs in each supply rail; BC557 (PNP) catches positive-output faults, BC547 (NPN) catches negative-output faults; both LM393 halves wire-OR to PD3. Series R_out + rail clamps protect the BNC node.</p>
+<div class="wrap">
+<svg viewBox="0 0 1080 420" width="1080" height="420">
+  <!-- +15V rail sense -->
+  <text class="pwr" x="40" y="40">+15V</text>
+  <line class="w" x1="40" y1="48" x2="40" y2="70"/>
+  <rect class="sym" x="34" y="70" width="12" height="30"/><text class="ref" x="60" y="80">Rs1</text><text class="val" x="60" y="95">30Ω</text>
+  <line class="w" x1="40" y1="100" x2="40" y2="130"/>
+  <circle class="dot" cx="40" cy="115" r="3"/>
+  <line class="w" x1="40" y1="115" x2="120" y2="115"/>
+  <text class="net" x="125" y="119">→ OUTPUT AMP V+</text>
+  <!-- BC557 PNP -->
+  <circle class="ic" cx="40" cy="175" r="18"/>
+  <text class="ref" x="14" y="178" text-anchor="end">BC557</text>
+  <line class="w" x1="40" y1="100" x2="40" y2="157"/> <!-- emitter to +15 side -->
+  <line class="w" x1="22" y1="175" x2="-5" y2="175"/>   <!-- base -->
+  <rect class="sym" x="-40" y="169" width="30" height="12" transform="translate(50,0)"/>
+  <text class="val" x="25" y="200">Rb 1k → Rs1 node</text>
+  <line class="w" x1="40" y1="193" x2="40" y2="230"/>   <!-- collector -->
+  <rect class="sym" x="34" y="230" width="12" height="30"/><text class="val" x="60" y="250">Rc 10k</text>
+  <line class="w" x1="40" y1="260" x2="40" y2="280"/>
+  <path class="sym" d="M28,280 H52 M32,285 H48 M36,290 H44"/>
+  <circle class="dot" cx="40" cy="220" r="3"/>
+  <line class="w" x1="40" y1="220" x2="150" y2="220"/>
+  <text class="net" x="155" y="216">nodeA</text>
+
+  <!-- -15V rail sense -->
+  <text class="pwr" x="300" y="40">−15V (mirror, NPN)</text>
+  <circle class="ic" cx="300" cy="120" r="18"/>
+  <text class="ref" x="326" y="123">BC547</text>
+  <text class="net" x="230" y="170">nodeB → LM393-B</text>
+  <line class="w" x1="282" y1="120" x2="230" y2="120"/>
+  <line class="w" x1="230" y1="120" x2="230" y2="160"/>
+
+  <!-- LM393 -->
+  <rect class="ic" x="430" y="120" width="120" height="120"/>
+  <text class="lbl" x="490" y="115" text-anchor="middle">LM393 (dual)</text>
+  <text class="lbl" x="490" y="160" text-anchor="middle">A: nodeA vs Vth</text>
+  <text class="lbl" x="490" y="185" text-anchor="middle">B: nodeB vs Vth</text>
+  <text class="lbl" x="490" y="210" text-anchor="middle">open-collector</text>
+  <line class="w" x1="150" y1="220" x2="430" y2="220"/>
+  <line class="w" x1="430" y1="220" x2="430" y2="200"/>
+  <!-- threshold divider -->
+  <text class="pwr" x="430" y="270">+5V</text>
+  <line class="w" x1="430" y1="276" x2="430" y2="290"/>
+  <text class="val" x="440" y="305">R1 47k / R2 4.7k → Vth ≈0.45V</text>
+  <!-- output wire-OR to PD3 -->
+  <line class="w" x1="550" y1="160" x2="640" y2="160"/>
+  <circle class="dot" cx="640" cy="160" r="3"/>
+  <text class="pwr" x="640" y="120">+5V</text>
+  <line class="w" x1="640" y1="126" x2="640" y2="135"/>
+  <rect class="sym" x="634" y="135" width="12" height="20"/><text class="val" x="655" y="150">10k</text>
+  <line class="w" x1="640" y1="160" x2="730" y2="160"/>
+  <text class="net" x="735" y="164">→ PD3 / INT1 (active-LOW)</text>
+
+  <!-- output protection bottom -->
+  <text class="net" x="40" y="345">VOUT</text>
+  <line class="w" x1="80" y1="340" x2="140" y2="340"/>
+  <rect class="sym" x="140" y="334" width="34" height="12"/><text class="ref" x="157" y="328" text-anchor="middle">R_out</text><text class="val" x="157" y="362" text-anchor="middle">100–220Ω 0.5W</text>
+  <line class="w" x1="174" y1="340" x2="300" y2="340"/>
+  <circle class="dot" cx="260" cy="340" r="3"/>
+  <text class="net" x="305" y="344">→ BNC (high-Z)</text>
+  <!-- clamps -->
+  <line class="w" x1="260" y1="340" x2="260" y2="305"/>
+  <polygon class="sym" points="252,305 268,305 260,292"/><line class="sym" x1="252" y1="290" x2="268" y2="290"/>
+  <text class="pwr" x="275" y="295">+15V</text>
+  <line class="w" x1="260" y1="340" x2="260" y2="378"/>
+  <line class="sym" x1="252" y1="378" x2="268" y2="378"/><polygon class="sym" points="252,378 268,378 260,391"/>
+  <text class="pwr" x="275" y="390">−15V</text>
+  <text class="lbl" x="330" y="300">D+ 1N4148</text>
+  <text class="lbl" x="330" y="386">D− 1N4148</text>
+</svg>
+</div>
+
+<!-- ================= STAGE D ================= -->
+<h2>D · Oscilloscope front-end (reuses the signal ladder)</h2>
+<p class="desc">Probe protected + biased to 0–5V, compared against the buffered DAC voltage (DACV) by NE5532-B open-loop; the result drives a 6N137 optocoupler into PD2. Internal 10-bit ADC taps the same probe node.</p>
+<div class="wrap">
+<svg viewBox="0 0 1080 360" width="1080" height="360">
+  <!-- probe chain -->
+  <text class="net" x="20" y="80">PROBE</text>
+  <line class="w" x1="60" y1="75" x2="90" y2="75"/>
+  <rect class="ic" x="90" y="65" width="34" height="20"/><text class="ref" x="107" y="60" text-anchor="middle">F1</text><text class="val" x="107" y="100" text-anchor="middle">100mA</text>
+  <line class="w" x1="124" y1="75" x2="160" y2="75"/>
+  <!-- MOV -->
+  <line class="w" x1="160" y1="75" x2="160" y2="110"/>
+  <rect class="sym" x="154" y="110" width="12" height="24"/><text class="ref" x="178" y="120">MOV</text>
+  <line class="w" x1="160" y1="134" x2="160" y2="148"/>
+  <path class="sym" d="M148,148 H172 M152,153 H168 M156,158 H164"/>
+  <line class="w" x1="160" y1="75" x2="200" y2="75"/>
+  <rect class="sym" x="200" y="69" width="34" height="12"/><text class="ref" x="217" y="63" text-anchor="middle">R_in</text><text class="val" x="217" y="98" text-anchor="middle">10k 1W</text>
+  <line class="w" x1="234" y1="75" x2="300" y2="75"/>
+  <circle class="dot" cx="300" cy="75" r="3"/>
+  <!-- clamps to +5/GND -->
+  <line class="w" x1="300" y1="75" x2="300" y2="45"/>
+  <polygon class="sym" points="292,45 308,45 300,33"/><line class="sym" x1="292" y1="31" x2="308" y2="31"/>
+  <text class="pwr" x="312" y="38">+5V</text>
+  <line class="w" x1="300" y1="75" x2="300" y2="120"/>
+  <line class="sym" x1="292" y1="105" x2="308" y2="105"/><polygon class="sym" points="292,105 308,105 300,118"/>
+  <path class="sym" d="M288,128 H312 M292,133 H308 M296,138 H304"/>
+  <text class="lbl" x="318" y="100">1N4148 ×2</text>
+  <!-- bias divider -->
+  <line class="w" x1="300" y1="75" x2="360" y2="75"/>
+  <text class="lbl" x="360" y="55">2.5V bias</text>
+  <text class="val" x="360" y="115">10k+10k +100nF</text>
+  <circle class="dot" cx="360" cy="75" r="3"/>
+  <line class="w" x1="360" y1="75" x2="420" y2="75"/>
+  <text class="net" x="425" y="79">probe node</text>
+
+  <!-- to internal ADC -->
+  <line class="w" x1="360" y1="75" x2="360" y2="150"/>
+  <line class="w" x1="360" y1="150" x2="520" y2="150"/>
+  <text class="net" x="525" y="154">→ PA0 (10-bit ADC)</text>
+
+  <!-- NE5532-B comparator -->
+  <line class="w" x1="520" y1="75" x2="560" y2="75"/>
+  <polygon class="ic" points="560,50 560,110 620,80"/>
+  <text class="lbl" x="573" y="68">+</text><text class="lbl" x="573" y="100">−</text>
+  <text class="ref" x="585" y="128" text-anchor="middle">NE5532-B</text>
+  <line class="w" x1="520" y1="75" x2="520" y2="75"/>
+  <!-- DACV into - -->
+  <line class="w" x1="520" y1="98" x2="540" y2="98"/>
+  <line class="w" x1="520" y1="98" x2="520" y2="200"/>
+  <line class="w" x1="520" y1="200" x2="430" y2="200"/>
+  <text class="net" x="425" y="204" text-anchor="end">DACV (DAC ref)</text>
+  <line class="w" x1="540" y1="98" x2="560" y2="98"/>
+
+  <!-- out -> 820 + diode -> 6N137 -->
+  <line class="w" x1="620" y1="80" x2="660" y2="80"/>
+  <rect class="sym" x="660" y="74" width="30" height="12"/><text class="val" x="675" y="68" text-anchor="middle">820Ω</text>
+  <line class="w" x1="690" y1="80" x2="720" y2="80"/>
+  <polygon class="sym" points="720,72 720,88 734,80"/><line class="sym" x1="734" y1="72" x2="734" y2="88"/>
+  <text class="lbl" x="715" y="104">1N4148</text>
+  <line class="w" x1="734" y1="80" x2="770" y2="80"/>
+
+  <!-- 6N137 -->
+  <rect class="ic" x="770" y="50" width="120" height="90"/>
+  <text class="lbl" x="830" y="44" text-anchor="middle">6N137</text>
+  <text class="val" x="830" y="78" text-anchor="middle">LED in (2)</text>
+  <text class="val" x="830" y="98" text-anchor="middle">VCC+5 · VE→GND</text>
+  <text class="val" x="830" y="118" text-anchor="middle">Vo (6)</text>
+  <!-- pullup + to PD2 -->
+  <line class="w" x1="890" y1="115" x2="940" y2="115"/>
+  <circle class="dot" cx="940" cy="115" r="3"/>
+  <text class="pwr" x="940" y="78">+5V</text>
+  <line class="w" x1="940" y1="84" x2="940" y2="95"/>
+  <rect class="sym" x="934" y="95" width="12" height="20"/><text class="val" x="958" y="110">4.7k</text>
+  <line class="w" x1="940" y1="115" x2="1000" y2="115"/>
+  <text class="net" x="1005" y="119" text-anchor="end">PD2/INT0</text>
+  <text class="net" x="1005" y="119">  </text>
+</svg>
+</div>
+
+</body>
+</html>

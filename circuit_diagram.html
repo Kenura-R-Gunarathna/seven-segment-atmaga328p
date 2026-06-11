@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Function Generator + Oscilloscope — Signal Flow</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#121a26; --ink:#e6edf3; --muted:#8b98a8;
+    --dig:#3b82f6; --amp:#f59e0b; --filt:#a855f7; --prot:#ef4444;
+    --scope:#10b981; --pwr:#64748b; --out:#22d3ee; --wire:#5b6b7e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:ui-sans-serif,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  header{padding:18px 24px;border-bottom:1px solid #1e2a3a}
+  h1{margin:0;font-size:18px;font-weight:650}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .wrap{padding:16px;overflow:auto}
+  svg{display:block;margin:0 auto;background:var(--bg);
+      max-width:100%;height:auto}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;padding:8px 24px 20px;
+          color:var(--muted);font-size:12.5px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:13px;height:13px;border-radius:3px;display:inline-block}
+  text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+</style>
+</head>
+<body>
+<header>
+  <h1>ATmega32A Function Generator + Oscilloscope — Signal Flow</h1>
+  <div class="sub">Two 16-bit R-2R DACs · fully digital control · ±13&nbsp;V centered output · dual-rail overcurrent protect</div>
+</header>
+
+<div class="legend">
+  <span><i class="sw" style="background:#3b82f6"></i>Digital / DAC</span>
+  <span><i class="sw" style="background:#f59e0b"></i>Analog amp</span>
+  <span><i class="sw" style="background:#a855f7"></i>Filter / mux</span>
+  <span><i class="sw" style="background:#ef4444"></i>Protection</span>
+  <span><i class="sw" style="background:#10b981"></i>Oscilloscope</span>
+  <span><i class="sw" style="background:#22d3ee"></i>Output</span>
+</div>
+
+<div class="wrap">
+<svg viewBox="0 0 1460 880" width="1460" height="880" role="img"
+     aria-label="Function generator signal-flow schematic">
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3"
+            orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 z" fill="#7e90a4"/>
+    </marker>
+    <style>
+      .box{rx:10;ry:10;stroke-width:1.6}
+      .t{fill:#e6edf3;font-size:13px;font-weight:650}
+      .v{fill:#9fb0c3;font-size:11px}
+      .pin{fill:#cfe;font-size:10.5px}
+      .w{stroke:#5b6b7e;stroke-width:2;fill:none;marker-end:url(#arrow)}
+      .wn{stroke:#5b6b7e;stroke-width:2;fill:none}
+      .lbl{fill:#7e90a4;font-size:10.5px}
+      .note{fill:#f59e0b;font-size:10.5px}
+    </style>
+  </defs>
+
+  <!-- ============ MAIN SIGNAL CHAIN (y=120) ============ -->
+  <!-- helper boxes drawn manually -->
+
+  <!-- Signal DAC -->
+  <rect x="24"  y="120" width="150" height="64" class="box" fill="#10243f" stroke="#3b82f6"/>
+  <text class="t" x="99" y="148" text-anchor="middle">SIGNAL DAC</text>
+  <text class="v" x="99" y="166" text-anchor="middle">16-bit · 2×74HC595</text>
+  <text class="pin" x="99" y="110" text-anchor="middle">PB5/PB7/PB3 (SPI)</text>
+
+  <!-- Buffer -->
+  <rect x="214" y="120" width="140" height="64" class="box" fill="#10243f" stroke="#3b82f6"/>
+  <text class="t" x="284" y="148" text-anchor="middle">BUFFER</text>
+  <text class="v" x="284" y="166" text-anchor="middle">follower (TL071)</text>
+
+  <!-- U7 center+unity -->
+  <rect x="394" y="120" width="150" height="64" class="box" fill="#3a2a0a" stroke="#f59e0b"/>
+  <text class="t" x="469" y="146" text-anchor="middle">U7  center+unity</text>
+  <text class="v" x="469" y="164" text-anchor="middle">R7=10k · ±2.5V</text>
+  <text class="note" x="469" y="206" text-anchor="middle">−8V →[32k]→ centering</text>
+  <line class="wn" x1="469" y1="184" x2="469" y2="198"/>
+
+  <!-- Sallen-Key -->
+  <rect x="584" y="120" width="140" height="64" class="box" fill="#2a1340" stroke="#a855f7"/>
+  <text class="t" x="654" y="148" text-anchor="middle">SALLEN-KEY</text>
+  <text class="v" x="654" y="166" text-anchor="middle">LPF (NE5532)</text>
+
+  <!-- CD4051 mux -->
+  <rect x="764" y="120" width="140" height="64" class="box" fill="#2a1340" stroke="#a855f7"/>
+  <text class="t" x="834" y="146" text-anchor="middle">CD4051 MUX</text>
+  <text class="v" x="834" y="164" text-anchor="middle">smooth / raw · ±2.5V</text>
+
+  <!-- Output amp -->
+  <rect x="944" y="104" width="160" height="96" class="box" fill="#3a2a0a" stroke="#f59e0b"/>
+  <text class="t" x="1024" y="138" text-anchor="middle">OUTPUT AMP</text>
+  <text class="v" x="1024" y="156" text-anchor="middle">gain + offset sum</text>
+  <text class="v" x="1024" y="172" text-anchor="middle">Rf=51k → ±13V</text>
+  <text class="v" x="1024" y="188" text-anchor="middle">gain bank CD4066</text>
+
+  <!-- Protection -->
+  <rect x="1144" y="104" width="150" height="96" class="box" fill="#3a1212" stroke="#ef4444"/>
+  <text class="t" x="1219" y="134" text-anchor="middle">PROTECT</text>
+  <text class="v" x="1219" y="152" text-anchor="middle">Rs±30Ω +BC557/BC547</text>
+  <text class="v" x="1219" y="168" text-anchor="middle">→ dual LM393</text>
+  <text class="v" x="1219" y="184" text-anchor="middle">R_out · clamps</text>
+
+  <!-- BNC out -->
+  <rect x="1334" y="120" width="102" height="64" class="box" fill="#08313a" stroke="#22d3ee"/>
+  <text class="t" x="1385" y="148" text-anchor="middle">BNC OUT</text>
+  <text class="v" x="1385" y="166" text-anchor="middle">high-Z</text>
+
+  <!-- main chain wires -->
+  <line class="w" x1="174" y1="152" x2="212" y2="152"/>
+  <line class="w" x1="354" y1="152" x2="392" y2="152"/>
+  <line class="w" x1="544" y1="152" x2="582" y2="152"/>
+  <line class="w" x1="724" y1="152" x2="762" y2="152"/>
+  <line class="w" x1="904" y1="152" x2="942" y2="152"/>
+  <line class="w" x1="1104" y1="152" x2="1142" y2="152"/>
+  <line class="w" x1="1294" y1="152" x2="1332" y2="152"/>
+
+  <!-- buffer tap down to scope -->
+  <line class="wn" x1="284" y1="184" x2="284" y2="300"/>
+  <line class="w"  x1="284" y1="300" x2="612" y2="300"/>
+  <text class="lbl" x="300" y="296">DACV → SAR reference</text>
+
+  <!-- fault line up to MCU -->
+  <line class="wn" x1="1219" y1="104" x2="1219" y2="74"/>
+  <line class="w"  x1="1219" y1="74"  x2="1060" y2="74"/>
+  <text class="pin" x="1075" y="68" text-anchor="end">fault → PD3 / INT1</text>
+
+  <!-- ============ OFFSET PATH (y=360) ============ -->
+  <rect x="214" y="360" width="150" height="64" class="box" fill="#10243f" stroke="#3b82f6"/>
+  <text class="t" x="289" y="388" text-anchor="middle">OFFSET DAC</text>
+  <text class="v" x="289" y="406" text-anchor="middle">16-bit · bit-bang</text>
+  <text class="pin" x="289" y="350" text-anchor="middle">PA5/PA6/PA7</text>
+
+  <rect x="404" y="360" width="140" height="64" class="box" fill="#3a2a0a" stroke="#f59e0b"/>
+  <text class="t" x="474" y="386" text-anchor="middle">U9 center</text>
+  <text class="v" x="474" y="404" text-anchor="middle">R13=10k</text>
+  <text class="note" x="474" y="440" text-anchor="middle">−8V →[32k]</text>
+  <line class="wn" x1="474" y1="424" x2="474" y2="432"/>
+
+  <rect x="584" y="360" width="150" height="64" class="box" fill="#3a2a0a" stroke="#f59e0b"/>
+  <text class="t" x="659" y="388" text-anchor="middle">OFFSET GAIN</text>
+  <text class="v" x="659" y="406" text-anchor="middle">CD4066 (U21)</text>
+
+  <line class="w" x1="364" y1="392" x2="402" y2="392"/>
+  <line class="w" x1="544" y1="392" x2="582" y2="392"/>
+  <!-- offset feeds up into output amp -->
+  <line class="wn" x1="734" y1="392" x2="1024" y2="392"/>
+  <line class="w"  x1="1024" y1="392" x2="1024" y2="202"/>
+  <text class="lbl" x="744" y="386">offset (±2.5V) → OUTPUT AMP</text>
+
+  <!-- ============ OSCILLOSCOPE (y=520) ============ -->
+  <rect x="24" y="520" width="160" height="64" class="box" fill="#06342b" stroke="#10b981"/>
+  <text class="t" x="104" y="546" text-anchor="middle">PROBE FRONT-END</text>
+  <text class="v" x="104" y="564" text-anchor="middle">fuse·MOV·clamp·2.5V bias</text>
+
+  <rect x="244" y="520" width="170" height="64" class="box" fill="#06342b" stroke="#10b981"/>
+  <text class="t" x="329" y="546" text-anchor="middle">NE5532-B COMPARATOR</text>
+  <text class="v" x="329" y="564" text-anchor="middle">probe vs DACV (open-loop)</text>
+
+  <rect x="474" y="520" width="150" height="64" class="box" fill="#06342b" stroke="#10b981"/>
+  <text class="t" x="549" y="546" text-anchor="middle">6N137 ISO</text>
+  <text class="v" x="549" y="564" text-anchor="middle">820Ω+1N4148</text>
+
+  <rect x="684" y="520" width="150" height="64" class="box" fill="#10243f" stroke="#3b82f6"/>
+  <text class="t" x="759" y="546" text-anchor="middle">ATmega</text>
+  <text class="v" x="759" y="564" text-anchor="middle">PD2/INT0 · PA0 ADC</text>
+
+  <line class="w" x1="184" y1="552" x2="242" y2="552"/>
+  <line class="w" x1="414" y1="552" x2="472" y2="552"/>
+  <line class="w" x1="624" y1="552" x2="682" y2="552"/>
+  <!-- DACV reference into comparator -->
+  <line class="wn" x1="612" y1="300" x2="612" y2="500"/>
+  <line class="w"  x1="612" y1="500" x2="329" y2="500"/>
+  <line class="wn" x1="329" y1="500" x2="329" y2="518"/>
+  <text class="lbl" x="340" y="496">SAR reference (reuses ladder)</text>
+
+  <!-- ============ POWER (y=660) ============ -->
+  <rect x="24" y="660" width="1412" height="70" rx="10" fill="#0e1620" stroke="#64748b"/>
+  <text class="t" x="44" y="688">POWER</text>
+  <text class="v" x="44" y="710">±24V → L7815/L7915 → ±15V → L7808/L7908 → ±8V · LM2596 → +5V</text>
+  <text class="v" x="44" y="726" fill="#7e90a4">±15V → op-amps · ±8V → CD4051/CD4066 · +5V → ATmega / 74HC595 / 6N137 / LM393</text>
+
+  <!-- ============ NOTES (y=760) ============ -->
+  <text class="note" x="24" y="772">KEY RULES</text>
+  <text class="v" x="24" y="792">• Fine amplitude/offset = digital wavetable scaling (≥50%) · coarse = MCU-driven CD4066 octaves — no pots, no manual switches</text>
+  <text class="v" x="24" y="810">• Gain stage AFTER the mux → CD4051 only sees ±2.5V (never the ±13V) · Rf=51k ⇒ ±12.75V, cannot clip on ±13.5V rail</text>
+  <text class="v" x="24" y="828">• Centering = single 32k from −8V at U7/U9 (no centering IC) · drift trimmed by offset DAC in firmware</text>
+  <text class="v" x="24" y="846">• Protection dual-rail (PNP +15V / NPN −15V) catches both output polarities · fault modes PROTECT / WARN / OFF by command</text>
+  <text class="v" x="24" y="864">• Both 16-bit DACs retained · scope reuses signal ladder (OSC-only=16-bit SAR; BOTH=16-bit@low-freq / 10-bit ADC@high-freq)</text>
+</svg>
+</div>
+</body>
+</html>

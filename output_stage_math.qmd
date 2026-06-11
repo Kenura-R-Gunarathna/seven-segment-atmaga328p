@@ -1,0 +1,212 @@
+---
+title: "Function Generator — Output Stage Design Equations (recalculated)"
+subtitle: "Final system after: buffer added · ±13 V target · gain-after-mux · merged output amp"
+author: "ATmega32A Function Generator project"
+date: 2026-06-10
+format:
+  html: { toc: true }
+  pdf:  { toc: true }
+---
+
+# What changed since the first derivation
+
+| Change | Effect on the math |
+|--------|--------------------|
+| **Voltage follower** added after the ladder | U7's input is now an explicit `R7a = 10k`, not the ladder's Thévenin |
+| Target **±13 V** (was ±15 V) — TL071 clips ~±13.5 V | `Rf : 60k → 51k`, `G_max : 6 → 5.1`, output **±12.75 V** |
+| **Gain moved after the CD4051 mux** | mux sees only ±2.5 V; the ±13 V is made in the output amp |
+| **Gain + offset merged into one output amp** | old separate U16 summer (R15/R17/R20) is gone |
+| **Offset gain bank dropped** | offset is a DC level (no waveform shape) → 100 % digital via the 16-bit offset DAC + fixed `R_off`; no analog octaves needed |
+| Fine amplitude = **digital** (≥50 %), coarse = **CD4066 octaves** | only *amplitude* needs analog octaves (to protect shape) |
+
+# Notation
+
+| Symbol | Meaning | Value |
+|--------|---------|-------|
+| $V_s,V_o$ | signal / offset DAC output | $\in[0,5]\ \text V$ |
+| $V_m$ | DAC midpoint | $2.5\ \text V$ |
+| $R_\text{dac}$ | R-2R ladder Thévenin | $10\ \text{k}\Omega$ (now buffered) |
+| $V_\text{ref}$ | internal centering rail | $-8\ \text V$ |
+| $V_\text{rail}$ | TL071 usable swing | $\pm13.5\ \text V$ (target $\pm12.75$) |
+| $R_{7a},R_{9a}$ | U7 / U9 input resistor (from buffered DAC) | unknown |
+| $R_7,R_{13}$ | U7 / U9 feedback | unknown |
+| $R_\text{cen}$ | centering resistor (−8 V into U7, U9) | unknown |
+| $R_f$ | output-amp feedback | unknown |
+| $R_g$ | CD4066-selected gain resistor | unknown |
+| $R_\text{off}$ | offset input to output amp | unknown |
+
+# Transfer functions
+
+**Buffer:** $V_\text{DACV} = V_s$ (unity follower — isolates the ladder, gives a clean
+voltage node for both U7 and the SAR comparator).
+
+**U7 (centering + unity, inverting):**
+$$
+V_1 = -\frac{R_7}{R_{7a}}V_s - \frac{R_7}{R_\text{cen}}V_\text{ref}
+    = -\frac{R_7}{R_{7a}}V_s + \frac{R_7}{R_\text{cen}}\,8
+\tag{1}
+$$
+
+**Output amp (inverting summer: gain on signal, fixed weight on offset):**
+$$
+V_\text{out} = -\frac{R_f}{R_g}V_\text{sig} - \frac{R_f}{R_\text{off}}V_\text{off}
+\tag{2}
+$$
+where $V_\text{sig}$ is the filtered/muxed $V_1$ (±2.5 V) and $V_\text{off}$ is the
+centered offset (±2.5 V).
+
+# The system (recalculated)
+
+**(E1) Centering** — require $V_1 = -\frac{R_7}{R_{7a}}(V_s-V_m)$. Match the constant in (1):
+$$
+\frac{R_7}{R_\text{cen}}\,8 = \frac{R_7}{R_{7a}}V_m
+\;\Rightarrow\;
+\boxed{R_\text{cen} = \frac{8\,R_{7a}}{V_m} = \frac{8\cdot10\text k}{2.5} = 32\ \text{k}\Omega}
+$$
+$R_7$ cancels — one resistor, no centering IC (same for U9 → $R_\text{cen2}=32\text k$).
+
+**(E2) Stage-1 unity** (sweet-spot absolute scale):
+$$
+\boxed{R_7 = R_{7a} = 10\ \text{k}\Omega} \;\Rightarrow\; V_1 = -(V_s-2.5) = \pm2.5\ \text V
+$$
+
+**(E3) Max amplitude at the output amp:**
+$$
+G_\max = \frac{R_f}{R_{g,\min}},\qquad
+\hat V_\text{out} = G_\max\,V_m \le V_\text{rail}
+$$
+
+**(E4) Solve for $R_f$** (target $\hat V_\text{out}=12.75\ \text V \le 13.5$):
+$$
+G_\max = \frac{12.75}{2.5}=5.1,\qquad
+\boxed{R_f = 51\text k,\; R_{g,\min}=10\text k \Rightarrow G_\max = 5.1}
+$$
+
+**(E5) Offset weight** — offset must reach the same ±12.75 V from a ±2.5 V centered DAC:
+$$
+\frac{R_f}{R_\text{off}} = 5.1 \;\Rightarrow\; \boxed{R_\text{off} = \frac{51\text k}{5.1} = 10\ \text{k}\Omega}
+$$
+Offset *fine* resolution is **digital** (16-bit offset DAC): $12.75/65536 \approx 0.19\ \text{mV}$
+steps — no offset gain bank needed.
+
+**(E6) Amplitude coarse octaves** (CD4066), fine = digital:
+$$
+R_g \in \{51\text k,\,25.5\text k,\,12.75\text k,\,10\text k\}
+\;\Rightarrow\; G \in \{\times1,\times2,\times4,\times5.1\}
+$$
+Within each octave the 16-bit DAC scales the wavetable **50–100 %** → DAC stays ≥15-bit
+and centering stays valid (symmetric about 0x8000). Coverage is continuous 1.25 V→12.75 V.
+
+> Why offset needs **no** octaves but amplitude does: amplitude scales the *waveform*, so
+> digital scaling below ~50 % coarsens its shape — the analog octave keeps the DAC ≥50 %.
+> Offset is a *DC level* (no shape), so 100 % digital scaling is lossless.
+
+**(E7) Rail headroom (firmware):**
+$$
+\boxed{|D| + \hat V_\text{out}(G) \le 12.75\ \text V}
+$$
+
+**(E8) Sallen-Key (separate):** $f_c = 1/(2\pi\sqrt{R_6R_{18}C_{16}C_{19}})$ — fixed by bandwidth.
+
+# Solved resistor set (final)
+
+| Ref | Role | Value |
+|-----|------|-------|
+| $R_{7a},R_{9a}$ | U7/U9 input (from buffered DAC) | **10k** |
+| $R_7,R_{13}$ | U7/U9 feedback (unity) | **10k** |
+| $R_\text{cen1},R_\text{cen2}$ | centering, −8 V into U7/U9 | **32k** (E96 32.4k) |
+| $R_f$ | output-amp feedback | **51k** |
+| $R_g$ | gain bank (CD4066 octaves) | **51k / 25.5k / 12.75k / 10k** |
+| $R_\text{off}$ | offset → output amp | **10k** |
+| Sallen-Key R6/R8/R18/R19 | filter | 10k (unchanged) |
+
+**Removed:** separate U16 summer (R15/R17/R20) · offset gain bank (U21) ·
+centering bank (U23 + R31–R34). All folded into one output amp + single 32 k centering +
+digital offset.
+
+# Output / mode equations
+
+$$
+V_\text{out} = \frac{R_f}{R_g}(V_s-V_m)\; +\; 5.1\,(V_o-V_m)
+$$
+(two inversions → in-phase). DC offset $D = 5.1(V_o-2.5)$, default 0. Modes:
+$$
+\text{Centered: } D=0 \quad\big|\quad \text{Full +: } D=+\hat V_\text{out} \quad\big|\quad
+\text{Full −: } D=-\hat V_\text{out}
+$$
+subject to (E7).
+
+# Per-range amplitude
+
+| $G$ | $R_g$ | $\hat V_\text{out}$ | digital 50–100 % → |
+|-----|-------|---------------------|--------------------|
+| ×1 | 51 k | ±2.5 V | 1.25–2.5 V |
+| ×2 | 25.5 k | ±5 V | 2.5–5 V |
+| ×4 | 12.75 k | ±10 V | 5–10 V |
+| ×5.1 | 10 k | ±12.75 V | 6.4–12.75 V |
+
+Continuous from **±1.25 V to ±12.75 V**, monotonic, DAC always ≥50 % (≥15-bit shape).
+
+# Centering stage & how negative offset works
+
+`CenterSignal` and `CenterOffset` are the **same** reused inverting-summer block
+(`centering.kicad_sch`): input via $R_{in}=10\text k$, the $-8\text V$ rail via
+$R_\text{cen}=32\text k$, feedback $R_f=10\text k$, and the **(+) input tied to GND**.
+
+## Derivation
+
+The (+) input is at GND, so the (−) input is a **virtual ground (0 V)**. Sum the currents
+into that node:
+
+$$
+\frac{V_\text{in}}{R_{in}} + \frac{V_\text{ref}}{R_\text{cen}} + \frac{V_\text{out}}{R_f} = 0
+$$
+
+With $R_{in}=R_f=10\text k$, $R_\text{cen}=32\text k$, $V_\text{ref}=-8\text V$:
+
+$$
+V_\text{out} = -V_\text{in} + 8\cdot\frac{10\text k}{32\text k} = \boxed{-(V_\text{in}-2.5)}
+$$
+
+| $V_\text{in}$ (DAC) | $V_\text{out}$ |
+|---------------------|----------------|
+| 0 V | +2.5 V |
+| 2.5 V | **0 V** (centered) |
+| 5 V | −2.5 V |
+
+A unipolar 0–5 V DAC (centered on 2.5 V) becomes a **bipolar ±2.5 V** signal about 0 V.
+
+## Where negative offset comes from (no separate negative source)
+
+1. **The DAC crosses mid-scale.** For $V_\text{in}>2.5\text V$ (code > `0x8000`),
+   $V_\text{out}=-(V_\text{in}-2.5)<0$.
+2. **The op-amps run on ±15 V**, so the output physically swings below ground (to ~−13.5 V).
+   The op-amp's **−15 V rail sources the negative swing** — that is the "negative source".
+3. The **−8 V / 32 k** injection only sets the center (provides the +2.5 V offset current);
+   it is the reference, not the output driver.
+
+## Inversion count (why no extra amp is needed)
+
+Offset path inversions: **CenterOffset (×−1) → GainOffset (×−M) → Summing amp (×−1)** = three.
+The first two **cancel**, the summing amp adds the third → net inverting:
+
+$$
+\text{final offset} = -M\,(V_o - 2.5)
+$$
+
+Crucially the **bipolarity comes from $(V_o-2.5)$** (the DAC crossing 2.5 V), **not** from the
+inversions — so cancellation does **not** remove negative offset. The inversion count only sets
+the **sign convention**, handled in firmware:
+
+| Offset DAC code | final offset |
+|-----------------|--------------|
+| < `0x8000` (<2.5 V) | **positive** (up to $+M\cdot2.5$) |
+| = `0x8000` (2.5 V) | 0 |
+| > `0x8000` (>2.5 V) | **negative** (down to $-M\cdot2.5$) |
+
+The signal path is also net-inverting (CenterSignal → filter/mux non-inv → GainSignal → Sum =
+3 inversions), so signal and offset combine consistently; the overall output is inverted vs the
+DAC — irrelevant for symmetric waves, and fixed for sawtooth by flipping the wavetable in firmware.
+
+**Conclusion:** no extra inverting/non-inverting stage is required — bipolar offset is inherent
+to the bipolar op-amp supply + the DAC crossing mid-scale; only the firmware sign-map changes.
