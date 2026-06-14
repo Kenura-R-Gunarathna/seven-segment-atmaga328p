@@ -1,8 +1,8 @@
 # Function Generator + Oscilloscope — Features, Requirements & Verification
 
-The master list of what the instrument must do, and whether the **current design**
-(see `output_stage_math.qmd`, `CIRCUIT_CHANGES.md`) actually achieves it. Status:
-✅ met · ⚠️ needs a fix/decision · ❓ open.
+The master list of what the instrument must do, and whether the **as-built design** achieves it.
+Detail: `output_stage_math.qmd` (this folder), `../hardware/FINAL_CIRCUIT.md`,
+`../hardware/HARDWARE.md`, `../hardware/POWER.md`. Status: ✅ met · ⚠️ needs a fix/decision · ❓ open.
 
 ---
 
@@ -29,12 +29,12 @@ The master list of what the instrument must do, and whether the **current design
 
 | # | Feature | Target | Met? | Notes |
 |---|---------|--------|------|-------|
-| OS1 | SAR ADC | 16-bit, binary search | ✅ | reuses a 16-bit DAC + comparator + 6N137 |
+| OS1 | SAR ADC | 16-bit, binary search | ✅ | reuses the signal 16-bit DAC + **LM393 comparator (U31)** → PD2 |
 | OS2 | Fast ADC path | internal 10-bit, ~38 kSPS | ✅ | `adc_int.h`, PA0 |
 | OS3 | Negative voltage | ±2.5 V via 2.5 V bias | ✅ | `sar_osc.h` / `adc_int.h` decode |
-| OS4 | Input protection | fuse + MOV + clamps | ✅ | `OSCILLOSCOPE_FRONTEND.md` |
-| OS5 | Comparator isolation | 6N137 protects PD2 | ✅ | open-loop NE5532-B → 6N137 |
-| OS6 | DAC reference for SAR | reuse signal ladder | ✅ | follower taps ladder; OSC-only=16-bit SAR, BOTH=16-bit at low freq else 10-bit ADC |
+| OS4 | Input protection | divider + clamp to +5/−8 V | ✅ | `../hardware/OSCILLOSCOPE_FRONTEND.md` |
+| OS5 | MCU-safe comparator out | logic 0–5 V to PD2 | ✅ | **U31 open-collector → R140 4.7k → +5 V** (no 6N137 — OC is already MCU-safe) |
+| OS6 | DAC reference for SAR | reuse signal ladder | ✅ | U12 follower (`DACV`) taps ladder; OSC-only=16-bit SAR, BOTH=16-bit at low freq else 10-bit ADC |
 
 ## C. Operating modes
 
@@ -68,4 +68,8 @@ Full derivation in `output_stage_math.qmd`. Key results:
 ## Decisions locked
 - Centering = single 32 kΩ resistor (U23 bank removed); errors trimmed by offset DAC in software.
 - Fine amplitude/offset = digital (16-bit DACs); analog banks = coarse range only.
-- Both 16-bit DACs retained.
+- Both 16-bit DACs retained, **both on hardware SPI** (signal latch PB3, offset latch PB4).
+- SAR comparator = **LM393 (U31)**, open-collector → +5 V → PD2 (6N137 removed).
+- Status = **8 LEDs via a 595 (U32)** on PC7; spares broken out to J3 (PD4–7) / J4 (PA1–7); ISP on J5.
+- **Power:** buck pre-reg (LM2596-ADJ) + linear post only where it earns it; never run a loaded
+  linear at a big drop or cascade without an OUT→IN diode (`../hardware/POWER.md`).

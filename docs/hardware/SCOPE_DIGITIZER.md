@@ -3,7 +3,8 @@
 Completes the oscilloscope: the conditioned scope signal (after divider → mux X2 → gain →
 U7 summing, centered to 0–5 V by the offset DAC) is **redirected by K5** to a **dual digitizer** —
 a fast internal 10-bit ADC (PA0) and a precise 16-bit SAR (signal-DAC + comparator → PD2).
-Companion: `OSCILLOSCOPE_FRONTEND.md`, `HARDWARE.md`, `PROTECTION_OUTPUT.md`.
+Companion (same folder): `OSCILLOSCOPE_FRONTEND.md`, `HARDWARE.md`, `PROTECTION_OUTPUT.md`,
+`FINAL_CIRCUIT.md`.
 
 > Centering note: **CenterSignal1 removed.** The +2.5 V re-bias is injected at **U7's summing
 > node by the offset DAC** (K1 NC → R6 → U7−) — *after* the gain. Same block does FG offset in

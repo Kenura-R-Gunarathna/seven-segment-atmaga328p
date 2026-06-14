@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Bare-metal AVR firmware for an **ATmega32A @ 16 MHz** (external crystal) implementing a combined **function generator + DIY oscilloscope** for a campus project. No Arduino/HAL — direct register access via avr-libc. The matching hardware lives in a separate KiCad project (`../function_generator.kicad_sch`); `OSCILLOSCOPE_FRONTEND.md` is the hardware front-end reference and `CIRCUIT_CHANGES.md` is the pending KiCad rework list (amp gains, DAC wiring, open questions).
+Bare-metal AVR firmware for an **ATmega32A @ 16 MHz** (external crystal) implementing a combined **function generator + DIY oscilloscope** for a campus project. No Arduino/HAL — direct register access via avr-libc. The matching hardware is a hand-built KiCad project in the parent directory (`../function_generator.kicad_sch`) — the **schematic is done & ERC-clean (verified)**. All circuit/hardware docs live under **`docs/`** (index: `docs/README.md`); the authoritative as-built pin map is **`docs/hardware/HARDWARE.md`**, the master circuit is `docs/hardware/FINAL_CIRCUIT.md`, and the **power supply — now its own separate KiCad project** (`../power_supply_2/`, its own PCB) — is documented in `docs/hardware/POWER.md`. The user owns all firmware coding + all KiCad edits — **never edit `.kicad_sch`**, only advise and edit docs.
 
 > **HARDWARE HARD RULE:** the design uses **two 16-bit R-2R DACs** (2× 74HC595 each) — one for the signal waveform, one for the offset/centering voltage. **Never propose removing or downgrading either 16-bit DAC.** 16-bit is deliberate: 76 µV steps let the output land on exact round values (10 mV, 100 mV); 8-bit (19.5 mV) cannot.
 
@@ -13,11 +13,18 @@ Bare-metal AVR firmware for an **ATmega32A @ 16 MHz** (external crystal) impleme
 > - **Centering** = a single fixed resistor injecting −8 V into the U7/U9 summing node; drift trimmed by the offset DAC in firmware. No switched centering bank.
 > - The only allowed "switches" are CD4066/CD4051 driven by the MCU through shift registers — i.e. digitally commanded, never hand-operated.
 
+> **POWER SUPPLY (separate board — its own KiCad project `power_supply_2`; fed by two isolated PSUs bonded at GND → split ±24 V, common ground). Full tree + burn history: `docs/hardware/POWER.md`.**
+> - **+15 / +8 / +5 V:** LM2596 buck pre-reg (trim ≈ **+18 / +11 / +8 V**) → linear **7815 / 7808 / 7805**. Reusable buck sub-sheet **`psu_buck.kicad_sch`** — pins `+VIN/−VIN/+VOUT/−VOUT`, **no internal `GND` symbol** so it instantiates freely.
+> - **−15 / −8 V:** **7915 / 7908 linear straight from −24 V.** A buck **cannot** make a ground-referenced negative rail from a *shared-ground* supply (it can't sink the return current) — **never propose a plain/relabeled buck for a negative rail here.** The `inv_psu_buck.kicad_sch` blocks (U6/U9) are kept on-board but are **not** what makes the negative rails; bench-verify they actually pre-regulate (stable −V, cool inductor), else disable (`~ON/OFF` → GND).
+> - **Buck FB trimmers** (Bourns 3296W 10 k, set-and-forget) **are allowed** — trimming a *fixed supply rail* is NOT a "manual control" and does not violate the all-digital rule (that rule governs *signal* parameters only).
+> - **Redirect / limp-home jumpers** pick buck-direct vs linear per rail (repair path if a linear burns): power off → re-trim buck to the exact rail → jumper → **DMM-verify**. **The negative buck-direct tap is RAW −24 V (not −15/−8) — DMM-verify before jumpering or it kills the op-amps.**
+> - **Power rule:** `P = (Vin−Vout)·I` — pre-buck any *loaded* linear; never cascade linears without an OUT→IN protection diode (this is what burned the original 7805/±8 regs).
+
 ## IC documentation convention (ALWAYS follow when discussing any IC)
 
 When proposing, reviewing, or documenting **any IC** in this design, always state these four things:
 
-1. **Operating / supply voltage** — e.g. ±15V (op-amps), +5V (logic/595/6N137), +8V/−8V (CD4051/CD4066). Always flag **logic-level compatibility**: a CMOS analog part (CD4051/CD4066) at VDD=+8V needs VIH ≈ 0.7×VDD ≈ 5.6V, so 5V logic from a 74HC595 is marginal — prefer VDD=+5V for those parts when the signal range allows.
+1. **Operating / supply voltage** — e.g. ±15V (op-amps), +5V (logic/595/LM393 protect), +8V (LM393 SAR comparator U31), +8V/−8V (CD4051/CD4066). Always flag **logic-level compatibility**: a CMOS analog part (CD4051/CD4066) at VDD=+8V needs VIH ≈ 0.7×VDD ≈ 5.6V, so 5V logic from a 74HC595 is marginal — prefer VDD=+5V for those parts when the signal range allows.
 2. **Pin-definition table** — one row per relevant pin, in this format:
 
    | Pin | Name | Type | Connects to |

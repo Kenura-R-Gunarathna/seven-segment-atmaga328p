@@ -2,7 +2,8 @@
 
 Final stage of the function generator: inverting-unity output buffer → dual-rail overcurrent
 sense → series resistor + rail clamps → BNC (high-Z). Fully digital fault response (no manual
-switch). Companion to `FINAL_CIRCUIT.md`, `output_stage_math.qmd`, `CIRCUIT_CHANGES.md`.
+switch). Companion: `FINAL_CIRCUIT.md`, `HARDWARE.md`, `POWER.md` (this folder),
+`../design/output_stage_math.qmd`.
 
 ```
  Summing Amp out ──► [FINAL BUFFER ×−1] ──► VOUT ──► [PROTECT] ──► [R_out] ──► BNC (high-Z)
